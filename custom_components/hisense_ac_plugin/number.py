@@ -10,7 +10,7 @@ from homeassistant.components.number import NumberEntity, NumberDeviceClass, Num
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.entity import DeviceInfo, EntityCategory
+from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.core import Event
@@ -335,9 +335,6 @@ class HisenseNumber(CoordinatorEntity, NumberEntity):
         self._attr_native_max_value = float(number_info.get("max_value"))
         self._attr_native_step = float(number_info.get("step"))
         self._attr_entity_registry_enabled_default = True
-        if "zone" in self._number_key.lower():
-            # Keep zone controls out of primary control card.
-            self._attr_entity_category = EntityCategory.CONFIG
 
         # 初始化时更新一次温度范围
         self._cached_device = None
