@@ -77,11 +77,18 @@ def _build_zone_damper_number_types(parser) -> list[tuple[str, dict[str, Any]]]:
         return entities
 
     attrs = getattr(parser, "attributes", {}) or {}
+
+    def is_zone_damper_key(key_lower: str) -> bool:
+        if "zone" not in key_lower:
+            return False
+        if key_lower.endswith("_power") or key_lower.endswith("_switch"):
+            return False
+        keywords = ("opencontrol", "damper", "aperture", "opening", "position", "percent")
+        return any(token in key_lower for token in keywords)
+
     for key, attr in attrs.items():
         key_lower = key.lower()
-        if "zone" not in key_lower:
-            continue
-        if not (key_lower.startswith("t_") or key_lower.startswith("aus_zone")):
+        if not is_zone_damper_key(key_lower):
             continue
         if getattr(attr, "read_write", "RW") == "R":
             continue
@@ -99,6 +106,7 @@ def _build_zone_damper_number_types(parser) -> list[tuple[str, dict[str, Any]]]:
 
         zone_match = re.search(r"zone_?(\d+)", key_lower)
         zone_name = f"Zone {zone_match.group(1)}" if zone_match else key.replace("t_", "").replace("_", " ").title()
+        number_type = f"zone_{zone_match.group(1)}_damper" if zone_match else f"{key}_damper"
 
         step = getattr(attr, "step", 1) or 1
         if step == 1:
@@ -116,7 +124,7 @@ def _build_zone_damper_number_types(parser) -> list[tuple[str, dict[str, Any]]]:
             "step": float(step),
             "description": f"Set {zone_name} damper opening",
         }
-        entities.append((f"{key}_damper", number_info))
+        entities.append((number_type, number_info))
 
     return entities
 
@@ -126,11 +134,17 @@ def _build_zone_damper_from_status(device: HisenseDeviceInfo) -> list[tuple[str,
     entities: list[tuple[str, dict[str, Any]]] = []
     status = device.status or {}
 
+    def is_zone_damper_key(key_lower: str) -> bool:
+        if "zone" not in key_lower:
+            return False
+        if key_lower.endswith("_power") or key_lower.endswith("_switch"):
+            return False
+        keywords = ("opencontrol", "damper", "aperture", "opening", "position", "percent")
+        return any(token in key_lower for token in keywords)
+
     for key, value in status.items():
         key_lower = str(key).lower()
-        if "zone" not in key_lower:
-            continue
-        if not (key_lower.startswith("t_") or key_lower.startswith("aus_zone")):
+        if not is_zone_damper_key(key_lower):
             continue
         if "temp" in key_lower or "humidity" in key_lower:
             continue
@@ -145,12 +159,9 @@ def _build_zone_damper_from_status(device: HisenseDeviceInfo) -> list[tuple[str,
         if numeric_value < 0 or numeric_value > 100:
             continue
 
-        # For aus_zone style keys, we only treat opencontrol as damper opening.
-        if key_lower.startswith("aus_zone") and "opencontrol" not in key_lower:
-            continue
-
         zone_match = re.search(r"zone_?(\d+)", key_lower)
         zone_name = f"Zone {zone_match.group(1)}" if zone_match else key.replace("t_", "").replace("_", " ").title()
+        number_type = f"zone_{zone_match.group(1)}_damper" if zone_match else f"{key}_damper"
 
         number_info = {
             "key": key,
@@ -164,7 +175,7 @@ def _build_zone_damper_from_status(device: HisenseDeviceInfo) -> list[tuple[str,
             "step": 5.0,
             "description": f"Set {zone_name} damper opening",
         }
-        entities.append((f"{key}_damper", number_info))
+        entities.append((number_type, number_info))
 
     return entities
 
@@ -319,7 +330,18 @@ class HisenseNumber(CoordinatorEntity, NumberEntity):
         translation_key = self._number_type  # 使用开关类型作为键
         current_lang = hass.config.language
         translations = hass.data.get(f"{DOMAIN}.translations", {}).get(current_lang, {})
-        translated_name = translations.get(translation_key, self._number_info["name"])
+        translated_name = translations.get(translation_key)
+        if translated_name:
+            return translated_name
+
+        zone_match = re.search(r"zone_(\d+)_damper", translation_key)
+        if zone_match:
+            zone_idx = zone_match.group(1)
+            if current_lang == "zh-Hans":
+                return f"分区{zone_idx}风门开度"
+            return f"Zone {zone_idx} Damper"
+
+        translated_name = self._number_info["name"]
         return translated_name
 
     @property

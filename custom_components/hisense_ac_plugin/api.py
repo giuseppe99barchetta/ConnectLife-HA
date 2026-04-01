@@ -169,6 +169,22 @@ class HisenseApiClient:
                         "fan_speed_ultra_high": "中高",
                         "fan_speed_low": "低",
                         "fan_speed_high": "高",
+                        "zone_1": "分区1",
+                        "zone_2": "分区2",
+                        "zone_3": "分区3",
+                        "zone_4": "分区4",
+                        "zone_5": "分区5",
+                        "zone_6": "分区6",
+                        "zone_7": "分区7",
+                        "zone_8": "分区8",
+                        "zone_1_damper": "分区1风门开度",
+                        "zone_2_damper": "分区2风门开度",
+                        "zone_3_damper": "分区3风门开度",
+                        "zone_4_damper": "分区4风门开度",
+                        "zone_5_damper": "分区5风门开度",
+                        "zone_6_damper": "分区6风门开度",
+                        "zone_7_damper": "分区7风门开度",
+                        "zone_8_damper": "分区8风门开度",
                     }
                 else:
                     hass.data[f"{DOMAIN}.translations"][lang] = {
@@ -270,6 +286,22 @@ class HisenseApiClient:
                         "fan_speed_ultra_high": "Ultra High",
                         "fan_speed_low": "Low",
                         "fan_speed_high": "High",
+                        "zone_1": "Zone 1",
+                        "zone_2": "Zone 2",
+                        "zone_3": "Zone 3",
+                        "zone_4": "Zone 4",
+                        "zone_5": "Zone 5",
+                        "zone_6": "Zone 6",
+                        "zone_7": "Zone 7",
+                        "zone_8": "Zone 8",
+                        "zone_1_damper": "Zone 1 Damper",
+                        "zone_2_damper": "Zone 2 Damper",
+                        "zone_3_damper": "Zone 3 Damper",
+                        "zone_4_damper": "Zone 4 Damper",
+                        "zone_5_damper": "Zone 5 Damper",
+                        "zone_6_damper": "Zone 6 Damper",
+                        "zone_7_damper": "Zone 7 Damper",
+                        "zone_8_damper": "Zone 8 Damper",
                     }
                 _LOGGER.debug("Loaded translations for %s: %s", lang)
             except Exception as e:
@@ -804,12 +836,12 @@ class HisenseApiClient:
             key_lower = key.lower()
             if "zone" not in key_lower:
                 continue
-            if not (key_lower.startswith("t_") or key_lower.startswith("aus_zone")):
-                continue
 
             value_range = str(prop.get("propertyValueList") or "")
-            if not value_range and key_lower.startswith("aus_zone") and "opencontrol" in key_lower:
+            if not value_range and "opencontrol" in key_lower:
                 value_range = "0~100"
+            if not value_range and key_lower.endswith("_power"):
+                value_range = "0,1"
             if not value_range:
                 continue
 
@@ -840,7 +872,7 @@ class HisenseApiClient:
                         step = 5
                 except (TypeError, ValueError):
                     step = 1
-            elif key_lower.startswith("aus_zone") and "opencontrol" in key_lower:
+            elif "opencontrol" in key_lower:
                 attr_type = "Number"
                 step = 5
 

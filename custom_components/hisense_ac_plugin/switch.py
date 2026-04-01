@@ -67,11 +67,20 @@ def _build_zone_switch_definitions(device: HisenseDeviceInfo, parser) -> list[tu
     attrs = getattr(parser, "attributes", {}) or {}
     seen_keys: set[str] = set()
 
+    def is_zone_switch_key(key_lower: str) -> bool:
+        if "zone" not in key_lower:
+            return False
+        # Accept common zone switch naming styles from different regions/platforms.
+        return (
+            key_lower.endswith("_power")
+            or key_lower.endswith("_switch")
+            or "onoff" in key_lower
+            or "enable" in key_lower
+        )
+
     for key, attr in attrs.items():
         key_lower = key.lower()
-        if "zone" not in key_lower:
-            continue
-        if not (key_lower.startswith("t_") or key_lower.startswith("aus_zone")):
+        if not is_zone_switch_key(key_lower):
             continue
 
         value_range = getattr(attr, "value_range", "") or ""
@@ -110,9 +119,7 @@ def _build_zone_switch_definitions(device: HisenseDeviceInfo, parser) -> list[tu
             continue
 
         key_lower = str(key).lower()
-        if "zone" not in key_lower:
-            continue
-        if not (key_lower.startswith("t_") or key_lower.startswith("aus_zone")):
+        if not is_zone_switch_key(key_lower):
             continue
 
         normalized = str(value)
@@ -398,7 +405,18 @@ class HisenseSwitch(CoordinatorEntity, SwitchEntity):
         translation_key = self._switch_type  # 使用开关类型作为键
         current_lang = hass.config.language
         translations = hass.data.get(f"{DOMAIN}.translations", {}).get(current_lang, {})
-        translated_name = translations.get(translation_key, self._switch_info["name"])
+        translated_name = translations.get(translation_key)
+        if translated_name:
+            return translated_name
+
+        zone_match = re.search(r"zone_(\d+)", translation_key)
+        if zone_match:
+            zone_idx = zone_match.group(1)
+            if current_lang == "zh-Hans":
+                return f"分区{zone_idx}"
+            return f"Zone {zone_idx}"
+
+        translated_name = self._switch_info["name"]
         return translated_name
     @property
     def _device(self):
