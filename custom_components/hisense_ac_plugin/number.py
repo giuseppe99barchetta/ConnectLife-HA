@@ -300,6 +300,14 @@ class HisenseNumber(CoordinatorEntity, NumberEntity):
     ]
     _WATER_TEMP_KEYS = {"t_zone1water_settemp1", "t_zone2water_settemp2"}
 
+    def _zone_index(self) -> str | None:
+        """Extract zone index from number_type or property key."""
+        for source in (self._number_type, self._number_key):
+            match = re.search(r"zone_?(\d+)", source.lower())
+            if match:
+                return match.group(1)
+        return None
+
     def _is_zone_damper(self) -> bool:
         key_lower = self._number_key.lower()
         if "zone" not in key_lower:
@@ -323,7 +331,15 @@ class HisenseNumber(CoordinatorEntity, NumberEntity):
         self._number_info = number_info
         self._number_key = number_info["key"]
         key_lower = self._number_key.lower()
-        if "zone" in key_lower:
+        if "zone" in key_lower and self._number_type.endswith("_damper"):
+            zone_idx = self._zone_index()
+            if zone_idx:
+                # Canonical unique_id for zone dampers to avoid duplicated entities
+                # caused by historical language/key naming changes.
+                self._attr_unique_id = f"{device.device_id}_zone_{zone_idx}_damper"
+            else:
+                self._attr_unique_id = f"{device.device_id}_{self._number_key}"
+        elif "zone" in key_lower:
             # Keep a stable unique_id based on raw key to avoid duplicate entities after upgrades.
             self._attr_unique_id = f"{device.device_id}_{self._number_key}"
         else:
