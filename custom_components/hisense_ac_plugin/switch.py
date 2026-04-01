@@ -71,7 +71,7 @@ def _build_zone_switch_definitions(device: HisenseDeviceInfo, parser) -> list[tu
         key_lower = key.lower()
         if "zone" not in key_lower:
             continue
-        if not key_lower.startswith("t_"):
+        if not (key_lower.startswith("t_") or key_lower.startswith("aus_zone")):
             continue
 
         value_range = getattr(attr, "value_range", "") or ""
@@ -110,7 +110,9 @@ def _build_zone_switch_definitions(device: HisenseDeviceInfo, parser) -> list[tu
             continue
 
         key_lower = str(key).lower()
-        if "zone" not in key_lower or not key_lower.startswith("t_"):
+        if "zone" not in key_lower:
+            continue
+        if not (key_lower.startswith("t_") or key_lower.startswith("aus_zone")):
             continue
 
         normalized = str(value)

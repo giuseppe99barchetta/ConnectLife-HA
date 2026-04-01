@@ -79,7 +79,9 @@ def _build_zone_damper_number_types(parser) -> list[tuple[str, dict[str, Any]]]:
     attrs = getattr(parser, "attributes", {}) or {}
     for key, attr in attrs.items():
         key_lower = key.lower()
-        if "zone" not in key_lower or not key_lower.startswith("t_"):
+        if "zone" not in key_lower:
+            continue
+        if not (key_lower.startswith("t_") or key_lower.startswith("aus_zone")):
             continue
         if getattr(attr, "read_write", "RW") == "R":
             continue
@@ -126,9 +128,13 @@ def _build_zone_damper_from_status(device: HisenseDeviceInfo) -> list[tuple[str,
 
     for key, value in status.items():
         key_lower = str(key).lower()
-        if "zone" not in key_lower or not key_lower.startswith("t_"):
+        if "zone" not in key_lower:
+            continue
+        if not (key_lower.startswith("t_") or key_lower.startswith("aus_zone")):
             continue
         if "temp" in key_lower or "humidity" in key_lower:
+            continue
+        if key_lower.endswith("_power"):
             continue
 
         try:
@@ -137,6 +143,10 @@ def _build_zone_damper_from_status(device: HisenseDeviceInfo) -> list[tuple[str,
             continue
 
         if numeric_value < 0 or numeric_value > 100:
+            continue
+
+        # For aus_zone style keys, we only treat opencontrol as damper opening.
+        if key_lower.startswith("aus_zone") and "opencontrol" not in key_lower:
             continue
 
         zone_match = re.search(r"zone_?(\d+)", key_lower)

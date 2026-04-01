@@ -802,10 +802,14 @@ class HisenseApiClient:
                 continue
 
             key_lower = key.lower()
-            if "zone" not in key_lower or not key_lower.startswith("t_"):
+            if "zone" not in key_lower:
+                continue
+            if not (key_lower.startswith("t_") or key_lower.startswith("aus_zone")):
                 continue
 
             value_range = str(prop.get("propertyValueList") or "")
+            if not value_range and key_lower.startswith("aus_zone") and "opencontrol" in key_lower:
+                value_range = "0~100"
             if not value_range:
                 continue
 
@@ -836,6 +840,9 @@ class HisenseApiClient:
                         step = 5
                 except (TypeError, ValueError):
                     step = 1
+            elif key_lower.startswith("aus_zone") and "opencontrol" in key_lower:
+                attr_type = "Number"
+                step = 5
 
             filtered_attributes[key] = DeviceAttribute(
                 key=key,
