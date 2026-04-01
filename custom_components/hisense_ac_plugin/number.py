@@ -435,10 +435,21 @@ class HisenseNumber(CoordinatorEntity, NumberEntity):
                 _LOGGER.error("Value out of range: %s", value)
                 return
 
-            # Convert value to integer before sending to device
+            payload_value = str(value)
+
+            # Some ducted zone controllers reject float strings (e.g. "0.0").
+            # For zone damper keys, send integer strings like "0"/"100".
+            key_lower = self._number_key.lower()
+            if "zone" in key_lower and (
+                key_lower.startswith("aus_zone")
+                or key_lower.startswith("t_zone")
+                or "opencontrol" in key_lower
+            ):
+                payload_value = str(int(round(value)))
+
             await self.coordinator.async_control_device(
                 puid=self._device_id,
-                properties={self._number_key: str(value)},
+                properties={self._number_key: payload_value},
             )
         except Exception as err:
             _LOGGER.error("Failed to set %s: %s", self._attr_name, err)
