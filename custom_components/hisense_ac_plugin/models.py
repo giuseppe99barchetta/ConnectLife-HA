@@ -228,9 +228,7 @@ class DeviceInfo:
 
     def has_attribute(self, key: str,parser: BaseDeviceParser) -> bool:
         """Check if device has a specific attribute."""
-        # First check if the attribute exists in status
-        # Check if the attribute is defined in the parser
-        #先使用静态数据判断
+        # Prefer parser metadata when available, then fall back to raw status keys.
         if not parser:
             return key in self.status
 

@@ -35,6 +35,9 @@ def _install_homeassistant_stubs() -> None:
     homeassistant = types.ModuleType("homeassistant")
     sys.modules["homeassistant"] = homeassistant
 
+    components = types.ModuleType("homeassistant.components")
+    sys.modules["homeassistant.components"] = components
+
     core = types.ModuleType("homeassistant.core")
 
     class HomeAssistant:
@@ -260,6 +263,40 @@ def _install_homeassistant_stubs() -> None:
     water_heater.STATE_HEAT_PUMP = "heat_pump"
     water_heater.STATE_OFF = "off"
     sys.modules["homeassistant.components.water_heater"] = water_heater
+
+    humidifier = types.ModuleType("homeassistant.components.humidifier")
+
+    class HumidifierEntity:
+        pass
+
+    class HumidifierEntityFeature(IntFlag):
+        MODES = 1
+
+    class HumidifierDeviceClass:
+        DEHUMIDIFIER = "dehumidifier"
+
+    humidifier.HumidifierEntity = HumidifierEntity
+    humidifier.HumidifierEntityFeature = HumidifierEntityFeature
+    humidifier.HumidifierDeviceClass = HumidifierDeviceClass
+    sys.modules["homeassistant.components.humidifier"] = humidifier
+
+    number = types.ModuleType("homeassistant.components.number")
+
+    class NumberEntity:
+        pass
+
+    class NumberDeviceClass:
+        TEMPERATURE = "temperature"
+
+    class NumberMode:
+        AUTO = "auto"
+        BOX = "box"
+        SLIDER = "slider"
+
+    number.NumberEntity = NumberEntity
+    number.NumberDeviceClass = NumberDeviceClass
+    number.NumberMode = NumberMode
+    sys.modules["homeassistant.components.number"] = number
 
     climate = types.ModuleType("homeassistant.components.climate")
 

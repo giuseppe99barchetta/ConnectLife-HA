@@ -125,7 +125,7 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
             | ClimateEntityFeature.SWING_MODE
             | ClimateEntityFeature.TURN_ON
             | ClimateEntityFeature.TURN_OFF
-        # | ClimateEntityFeature.PRESET_MODE  # 添加预设模式支持
+        # | ClimateEntityFeature.PRESET_MODE  # Preset mode support can be added later.
     )
 
     def __init__(
@@ -161,14 +161,14 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
                 self.static_data = coordinator.api_client.static_data.get(device.device_id)
                 _LOGGER.debug("Using parser for device type %s-%s:%s", device_type.type_code, device_type.feature_code,
                               self._parser)
-                # 保存 device_type 的 type_code 和 feature_code 供后续使用
+                # Store type_code and feature_code for later feature checks.
                 self._current_type_code = device_type.type_code
                 self._current_feature_code = device_type.feature_code
                 # Set available modes based on device capabilities
                 self._setup_hvac_modes()
                 self._setup_fan_modes()
                 self._setup_swing_modes()
-                # 预设模式
+                # Preset modes.
                 # self._attr_preset_mode = None
                 # self._attr_preset_modes = ["eco", "away", "comfort", "sleep"]
             except Exception as err:
@@ -188,10 +188,10 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
                 HVACMode.FAN_ONLY,
             ]
 
-        # 获取 target_temp 属性
+        # Read target temperature metadata from the parser.
         target_temp_attr = self._parser.attributes.get(StatusKey.TARGET_TEMP) if self._parser else None
 
-        # 解析 propertyValueList 以获取温度范围
+        # Parse propertyValueList into one or more temperature ranges.
         def parse_temperature_range(property_value_list):
             ranges = []
             for item in property_value_list.split(','):
@@ -201,20 +201,20 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
                     ranges.append((lower, upper))
             return ranges
 
-        # 获取解析后的温度范围
+        # Use parsed ranges when available, otherwise fall back to defaults.
         if target_temp_attr and target_temp_attr.value_range:
             temperature_ranges = parse_temperature_range(target_temp_attr.value_range)
         else:
             _LOGGER.warning("Target temperature attribute or value range not found, using default range.")
             temperature_ranges = [(MIN_TEMP, MAX_TEMP)]
 
-        # 获取 temp_type 属性
+        # Inspect the device temperature unit selector.
         temp_type_attr = device.status.get(StatusKey.T_TEMP_TYPE)
 
 
-        # 根据 temp_type 选择合适的温度范围
+        # Pick the correct range based on the reported temperature unit.
         if temp_type_attr != "1":
-            # 使用第一个范围
+            # Use the Celsius range.
             if temperature_ranges:
                 min_temp, max_temp = temperature_ranges[0]
             else:
@@ -222,17 +222,17 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
                 max_temp = MAX_TEMP
             self._attr_temperature_unit = UnitOfTemperature.CELSIUS
         else:
-            # 使用第二个范围
+            # Use the Fahrenheit range.
             if len(temperature_ranges) > 1:
                 min_temp, max_temp = temperature_ranges[1]
             else:
                 min_temp = MIN_TEMP
                 max_temp = MAX_TEMP
             self._attr_temperature_unit = UnitOfTemperature.FAHRENHEIT
-        # 设置属性
+        # Apply the resolved limits to the entity.
         self._attr_min_temp = min_temp
         self._attr_max_temp = max_temp
-        _LOGGER.debug("设置温度上下限 %s-%s:%s:%s", device_type.type_code, device_type.feature_code,
+        _LOGGER.debug("Resolved temperature limits for %s-%s: %s-%s", device_type.type_code, device_type.feature_code,
                       self._attr_min_temp,self._attr_max_temp)
         if not hasattr(self, '_attr_fan_modes'):
             self._attr_fan_modes = [FAN_AUTO, SFAN_ULTRA_LOW, FAN_LOW, FAN_MEDIUM, FAN_HIGH, SFAN_ULTRA_HIGH]
@@ -241,7 +241,7 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
             self._attr_swing_modes = [SWING_OFF, SWING_VERTICAL]
 
     # async def async_set_preset_mode(self, preset_mode: str) -> None:
-    #     """设置预设模式。"""
+    #     """Set the preset mode."""
     #     if preset_mode not in self.preset_modes:
     #         raise ValueError(f"Invalid preset mode: {preset_mode}")
     #     self._attr_preset_mode = preset_mode
@@ -275,7 +275,7 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
                 elif "自动" in value or "auto" in value.lower():
                     available_modes.append(HVACMode.AUTO)
 
-        # 按用户指定的顺序添加模式（跳过设备不支持的模式）
+        # Keep a stable HVAC mode order while skipping unsupported modes.
         desired_order = [HVACMode.COOL, HVACMode.HEAT, HVACMode.DRY, HVACMode.FAN_ONLY, HVACMode.AUTO]
         for mode in desired_order:
             if mode in available_modes:
@@ -312,9 +312,9 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
                     fan_modes.append(value)
 
         if fan_modes:
-            # 新增逻辑：检查条件并过滤模式
+            # Filter unsupported fan tiers based on static capabilities.
             if position6_damper_control != '9':
-                # 为9的时候有056789为7的时候是0579
+                # Some devices expose only a reduced fan-speed set.
                 fan_modes = [
                     mode for mode in fan_modes
                     if mode not in (SFAN_ULTRA_LOW, SFAN_ULTRA_HIGH)
@@ -338,13 +338,13 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
             if upper_and_lower == '1':
                 swing_modes.append(SWING_VERTICAL)
 
-        # 特别处理：如果设备是 feature_code == '199'，则禁用水平摆风
+        # Feature 199 only supports vertical swing.
         if self._current_feature_code == '199':
             self._attr_swing_modes = swing_modes
             _LOGGER.debug("Device %s only supports vertical swing (SWING_VERTICAL)", self._device_id)
             return
 
-        # 否则继续检查水平摆风
+        # Otherwise continue checking horizontal swing.
         horizontal_swing_attr = self._parser.attributes.get("t_left_right")
         if horizontal_swing_attr and horizontal_swing_attr.value_map:
             if SWING_VERTICAL in swing_modes:
@@ -439,7 +439,7 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
         mode = self._device.get_status_value(StatusKey.MODE)
         if not mode:
             return HVACMode.AUTO  # Default to AUTO if mode is not set
-        _LOGGER.debug("当前设备 %s  模式%s ", self._current_feature_code, mode)
+        _LOGGER.debug("Current device feature=%s mode=%s", self._current_feature_code, mode)
         # Try to map the mode using the device parser
         if hasattr(self, '_parser') and self._parser:
             work_mode_attr = self._parser.attributes.get(StatusKey.MODE)
@@ -519,13 +519,13 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
         """Return the swing setting."""
         if not self._device:
             return None
-        _LOGGER.debug("风向改变 %s with status: %s", self._current_feature_code, self._device.status)
+        _LOGGER.debug("Evaluating swing mode for feature=%s status=%s", self._current_feature_code, self._device.status)
         # Get vertical swing status
         vertical_swing = self._device.get_status_value(StatusKey.SWING)
 
         # Get horizontal swing status
         horizontal_swing = self._device.get_status_value("t_left_right")
-        # 特别处理：如果是 199 设备，强制水平摆风为 None（不支持）
+        # Feature 199 does not support horizontal swing.
         if self._current_feature_code == '199':
             horizontal_swing = None
         # Determine swing mode based on vertical and horizontal settings
@@ -552,23 +552,23 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
                 | ClimateEntityFeature.TURN_OFF
         )
 
-        # 新增类型检查：仅type为009的设备支持风向功能
+        # Only type 009 devices expose swing controls.
         if self._current_type_code != '009':
             features &= ~ClimateEntityFeature.SWING_MODE
 
-        # 新增逻辑：如果风速模式数量<=1（仅自动模式），则隐藏风速设置
+        # Hide swing controls when no effective swing options exist.
         if len(self._attr_swing_modes) <= 1:
             features &= ~ClimateEntityFeature.SWING_MODE
-        # 根据当前模式决定是否支持目标温度设置
+        # Limit target-temperature control to heating and cooling modes.
         current_mode = self.hvac_mode
         if current_mode not in [HVACMode.COOL, HVACMode.HEAT]:
             features &= ~ClimateEntityFeature.TARGET_TEMPERATURE
 
-        # 在除湿模式下禁止设置风速
+        # Hide fan control while in dry mode.
         if current_mode == HVACMode.DRY:
             features &= ~ClimateEntityFeature.FAN_MODE
 
-        # # 在仅送风模式下隐藏风速设置
+        # Optionally hide fan controls in fan-only mode.
         # if current_mode == HVACMode.FAN_ONLY:
         #     features &= ~ClimateEntityFeature.FAN_MODE
 
@@ -576,14 +576,14 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
 
     async def async_set_temperature(self, **kwargs) -> None:
         """Set new target temperature."""
-        # 检查当前模式是否允许设置温度
+        # Reject temperature writes for modes that do not support them.
         current_mode = self.hvac_mode
         if current_mode in [HVACMode.FAN_ONLY, HVACMode.DRY, HVACMode.AUTO]:
             _LOGGER.debug("Temperature setting is not allowed in current mode: %s", current_mode)
             return
 
         temperature = kwargs.get(ATTR_TEMPERATURE)
-        _LOGGER.debug("温度下发: %s: %s", kwargs,temperature)
+        _LOGGER.debug("Sending target temperature update kwargs=%s temperature=%s", kwargs, temperature)
         if temperature is None:
             return
 
@@ -596,7 +596,7 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
             _LOGGER.error("Failed to set temperature: %s", err)
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
-        # 更新缓存和时间戳
+        # Cache the requested state briefly to avoid UI bounce after commands.
         self._cached_hvac_mode = hvac_mode
         self._cached_fan_mode = self.fan_mode
         self._cached_swing_mode = self.swing_mode
@@ -649,8 +649,8 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
                     await self.coordinator.async_control_device(
                         puid=self._device_id,
                         properties={
-                            StatusKey.POWER: "1",  # 开机
-                            StatusKey.MODE: hisense_mode  # 同步设置模式
+                            StatusKey.POWER: "1",  # Power on first.
+                            StatusKey.MODE: hisense_mode  # Keep mode in sync.
                         }
                     )
                     return
@@ -666,7 +666,7 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
             _LOGGER.error("Failed to set hvac mode: %s", err)
 
     async def async_set_fan_mode(self, fan_mode: str) -> None:
-        # 更新缓存和时间戳
+        # Cache the requested state briefly to avoid UI bounce after commands.
         self._cached_fan_mode = fan_mode
         self._cached_hvac_mode = self.hvac_mode
         self._cached_swing_mode = self.swing_mode
@@ -719,7 +719,7 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
             _LOGGER.error("Failed to set fan mode: %s", err)
 
     async def async_set_swing_mode(self, swing_mode: str) -> None:
-        # 更新缓存和时间戳
+        # Cache the requested state briefly to avoid UI bounce after commands.
         self._cached_swing_mode = swing_mode
         self._cached_hvac_mode = self.hvac_mode
         self._cached_fan_mode = self.fan_mode
@@ -792,6 +792,6 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
         if not device:
             _LOGGER.warning("Device %s not found during sensor update", self._device_id)
             return
-        """仅在超时后处理协调器更新"""
+        """Process coordinator updates only after the command debounce window."""
         if time.time() - self._last_command_time >= self.wait_time:
             super()._handle_coordinator_update()

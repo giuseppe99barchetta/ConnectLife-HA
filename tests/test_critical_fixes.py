@@ -14,12 +14,18 @@ from custom_components.hisense_ac_plugin.config_flow import HisenseOptionsFlowHa
 from custom_components.hisense_ac_plugin.coordinator import (
     HisenseACPluginDataUpdateCoordinator,
 )
+from custom_components.hisense_ac_plugin import humidifier as humidifier_module
 from custom_components.hisense_ac_plugin.models import DeviceInfo
+from custom_components.hisense_ac_plugin import number as number_module
+from custom_components.hisense_ac_plugin.number import async_setup_entry as setup_number
+from custom_components.hisense_ac_plugin.humidifier import async_setup_entry as setup_humidifier
 from custom_components.hisense_ac_plugin.switch import async_setup_entry as setup_switches
 from custom_components.hisense_ac_plugin.switch import HisenseSwitch
+from custom_components.hisense_ac_plugin import water_heater as water_heater_module
 from custom_components.hisense_ac_plugin.water_heater import (
     HisenseWaterHeater,
     STATE_DUAL_MODE,
+    async_setup_entry as setup_water_heater,
 )
 from custom_components.hisense_ac_plugin.websocket import HisenseWebSocket
 
@@ -241,6 +247,18 @@ def test_climate_009_128_available_when_offline_state_missing_but_status_present
     assert climate.available is True
 
 
+def test_no_warning_for_ac_only_empty_number_platform():
+    _assert_no_no_entities_warning(number_module, setup_number)
+
+
+def test_no_warning_for_ac_only_empty_water_heater_platform():
+    _assert_no_no_entities_warning(water_heater_module, setup_water_heater)
+
+
+def test_no_warning_for_ac_only_empty_humidifier_platform():
+    _assert_no_no_entities_warning(humidifier_module, setup_humidifier)
+
+
 def test_websocket_async_connect_is_non_blocking_and_cancellable():
     events = []
 
@@ -315,3 +333,39 @@ def _build_climate_device_for_availability(offline_state):
         get_device=lambda _device_id: device,
     )
     return HisenseClimate(coordinator, device)
+
+
+def _assert_no_no_entities_warning(module, setup_fn):
+    hass = DummyHass()
+    entry = SimpleNamespace(entry_id="entry-1")
+    device = build_device(
+        type_code="009",
+        feature_code="128",
+        status={
+            StatusKey.POWER: "1",
+            StatusKey.TEMPERATURE: "24",
+            StatusKey.TARGET_TEMP: "25",
+            StatusKey.MODE: "0",
+            StatusKey.T_TEMP_TYPE: "0",
+        },
+    )
+    coordinator = SimpleNamespace(
+        hass=hass,
+        data={device.device_id: device},
+        api_client=SimpleNamespace(parsers={}, static_data={}),
+        async_config_entry_first_refresh=_async_noop,
+    )
+    hass.data[DOMAIN] = {entry.entry_id: coordinator}
+    added = []
+    warnings = []
+    original_warning = module._LOGGER.warning
+    module._LOGGER.warning = lambda message, *args, **kwargs: warnings.append(
+        message % args if args else message
+    )
+    try:
+        asyncio.run(setup_fn(hass, entry, added.extend))
+    finally:
+        module._LOGGER.warning = original_warning
+
+    assert added == []
+    assert all("No supported" not in message for message in warnings)
