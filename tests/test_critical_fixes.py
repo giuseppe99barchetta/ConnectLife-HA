@@ -15,6 +15,7 @@ from custom_components.hisense_ac_plugin.coordinator import (
 )
 from custom_components.hisense_ac_plugin.models import DeviceInfo
 from custom_components.hisense_ac_plugin.switch import async_setup_entry as setup_switches
+from custom_components.hisense_ac_plugin.switch import HisenseSwitch
 from custom_components.hisense_ac_plugin.water_heater import (
     HisenseWaterHeater,
     STATE_DUAL_MODE,
@@ -164,6 +165,18 @@ def test_async_unload_entry_calls_coordinator_cleanup():
     assert result is True
     assert cleanup_calls == ["cleanup"]
     assert entry.entry_id not in hass.data[DOMAIN]
+
+
+def test_switch_scheduled_update_does_not_await_none():
+    switch = HisenseSwitch.__new__(HisenseSwitch)
+    switch._last_action_time = 0
+    switch._debounce_delay = 10
+    calls = []
+    switch.async_schedule_update_ha_state = lambda force: calls.append(force)
+
+    asyncio.run(HisenseSwitch._async_schedule_update(switch))
+
+    assert calls == [True]
 
 
 def test_climate_setup_accepts_split_ac_family_009_128():
