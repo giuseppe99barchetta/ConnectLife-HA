@@ -41,7 +41,7 @@ class HisenseACPluginDataUpdateCoordinator(DataUpdateCoordinator):
         """Set up the coordinator."""
         try:
             # Get initial device list
-            devices = await self.api_client.async_get_devices
+            devices = await self.api_client.async_get_devices()
             if not devices:
                 _LOGGER.error("No devices found during setup")
                 return False
@@ -74,7 +74,7 @@ class HisenseACPluginDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.debug("Starting periodic update for all devices")
             
             # Get all device statuses in one call
-            devices = await self.api_client.async_get_devices
+            devices = await self.api_client.async_get_devices()
             if not devices:
                 _LOGGER.warning("No devices found during update")
                 raise UpdateFailed("No devices found")
@@ -100,7 +100,7 @@ class HisenseACPluginDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.debug("Manually refreshing device %s", device_id)
             
             # Get all device statuses in one call since it's more efficient
-            devices = await self.api_client.async_get_devices
+            devices = await self.api_client.async_get_devices()
             if devices and device_id in devices:
                 self._devices = devices
                 self.data = devices
@@ -116,7 +116,7 @@ class HisenseACPluginDataUpdateCoordinator(DataUpdateCoordinator):
         """Manually refresh all devices' status."""
         try:
             _LOGGER.debug("Manually refreshing all devices")
-            devices = await self.api_client.async_get_devices
+            devices = await self.api_client.async_get_devices()
             if devices:
                 self._devices = devices
                 self.data = devices
@@ -181,7 +181,9 @@ class HisenseACPluginDataUpdateCoordinator(DataUpdateCoordinator):
             self._websocket = None
             self._websocket_connected = False
             _LOGGER.debug("WebSocket connection closed")
-            
+
+        # Coordinator owns integration teardown. API cleanup handles any API-level
+        # websocket plus OAuth session close, and remains idempotent.
         await self.api_client.async_cleanup()
         _LOGGER.debug("Coordinator unloaded")
 
@@ -235,7 +237,9 @@ class HisenseACPluginDataUpdateCoordinator(DataUpdateCoordinator):
                         # Update online status
                         online_status = content_data.get("onlinestats")
                         if online_status is not None:
-                            device_data["offlineState"] = 0 if int(online_status) == 1 else 1
+                            device_data["offlineState"] = DeviceInfo.offline_state_from_online(
+                                int(online_status) == 1
+                            )
                             _LOGGER.debug(
                                 "Updated device %s online status: %s",
                                 device_id,

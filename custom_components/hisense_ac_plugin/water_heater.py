@@ -148,7 +148,7 @@ class HisenseWaterHeater(CoordinatorEntity, WaterHeaterEntity):
         self._device_id = device.puid
         self._attr_unique_id = f"{device.device_id}_water_heater"
         self._attr_name = device.name
-        self.current_mode = OPERATION_MODE_MAP.get(device.status.get(StatusKey.MODE))
+        self.current_mode = self._get_current_mode(device)
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, device.device_id)},
             name=device.name,
@@ -200,21 +200,32 @@ class HisenseWaterHeater(CoordinatorEntity, WaterHeaterEntity):
 
         return modes
 
+    def _get_current_mode(self, device: HisenseDeviceInfo | None = None) -> str | None:
+        """Return normalized Home Assistant mode for current device state.
+
+        Keep raw Hisense mode values at API boundary only. Entity state and
+        temperature-range lookups use HA mode identifiers consistently.
+        """
+        target_device = device or self._device
+        if not target_device:
+            return None
+        return OPERATION_MODE_MAP.get(target_device.get_status_value(StatusKey.MODE))
+
     def _update_temperature_range(self):
         """Update the temperature range based on the current mode and feature_code."""
         if not self._parser or not self._current_feature_code:
             return
 
-        current_mode = self.current_mode
-        operon_mode = OPERATION_MODE_MAP.get(current_mode)
-        if operon_mode in self.TEMP_RANGE_MAP.get(self._current_feature_code, {}):
-            min_temp, max_temp = self.TEMP_RANGE_MAP[self._current_feature_code][operon_mode]
+        current_mode = self._get_current_mode()
+        self.current_mode = current_mode
+        if current_mode in self.TEMP_RANGE_MAP.get(self._current_feature_code, {}):
+            min_temp, max_temp = self.TEMP_RANGE_MAP[self._current_feature_code][current_mode]
             self._attr_min_temp = min_temp
             self._attr_max_temp = max_temp
             _LOGGER.debug("Updated temperature range to %d-%d for mode %s and feature_code %s", min_temp, max_temp,
-                          operon_mode, self._current_feature_code)
+                          current_mode, self._current_feature_code)
         else:
-            _LOGGER.warning("No temperature range found for mode %s and feature_code %s", operon_mode,
+            _LOGGER.warning("No temperature range found for mode %s and feature_code %s", current_mode,
                             self._current_feature_code)
 
     @property
@@ -287,8 +298,8 @@ class HisenseWaterHeater(CoordinatorEntity, WaterHeaterEntity):
                 return self._get_translation("STATE_DUAL_1_")
         _LOGGER.debug("热泵当前模式：%s：%s", self._current_feature_code, self.current_mode)
         mode = self._get_translation(mode_key)
-        if self.current_mode != hisense_mode:
-            self.current_mode = hisense_mode
+        if self.current_mode != mode_key:
+            self.current_mode = mode_key
             self._update_temperature_range()
             self.schedule_update_ha_state()
         return mode
@@ -832,5 +843,3 @@ class Atw035699WaterHeater(CoordinatorEntity, WaterHeaterEntity):
             features &= ~WaterHeaterEntityFeature.TARGET_TEMPERATURE
 
         return features
-
-

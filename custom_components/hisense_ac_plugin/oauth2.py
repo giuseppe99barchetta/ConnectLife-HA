@@ -66,7 +66,8 @@ class OAuth2Session:
 
     async def close(self) -> None:
         """Close the session."""
-        await self.session.close()
+        if not self.session.closed:
+            await self.session.close()
 
 class HisenseOAuth2Implementation(config_entry_oauth2_flow.LocalOAuth2Implementation):
     """Hisense OAuth2 implementation."""

@@ -36,7 +36,7 @@ class HisenseOptionsFlowHandler(OptionsFlow):
             if user_input.get("refresh_devices", False):
                 try:
                     # 重新获取设备列表
-                    devices = await coordinator.api_client.async_get_devices
+                    devices = await coordinator.api_client.async_get_devices()
                     coordinator._devices = devices
                     # 强制更新一次状态
                     await coordinator.async_refresh()

@@ -76,6 +76,16 @@ class NotificationInfo:
 class DeviceInfo:
     """Device information class."""
 
+    @staticmethod
+    def is_online_from_offline_state(offline_state: Any) -> bool:
+        """Translate the API/WebSocket offline flag into an online boolean."""
+        return str(offline_state) == "0"
+
+    @staticmethod
+    def offline_state_from_online(is_online: bool) -> int:
+        """Translate an online boolean back into the API/WebSocket offline flag."""
+        return 0 if is_online else 1
+
     def __init__(self, data: dict[str, Any]) -> None:
         """Initialize device info."""
         if not isinstance(data, dict):
@@ -110,7 +120,7 @@ class DeviceInfo:
         self.onOff = self.status.get("t_power")
         self.seq = data.get("seq")
         self.create_time = data.get("createTime")
-        self._is_online = self.offline_state == 1
+        self._is_online = self.is_online_from_offline_state(self.offline_state)
         self._is_onOff = self.onOff == 1 or self.onOff == "1"
 
         _LOGGER.debug(
@@ -184,6 +194,9 @@ class DeviceInfo:
         # First check if the attribute exists in status
         # Check if the attribute is defined in the parser
         #先使用静态数据判断
+        if not parser:
+            return key in self.status
+
         attributes = parser.attributes
         if attributes:
             _LOGGER.debug("Checking if device has status: %s", attributes)

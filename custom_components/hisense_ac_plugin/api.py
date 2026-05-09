@@ -507,7 +507,6 @@ class HisenseApiClient:
             
         return params
 
-    @property
     async def async_get_devices(self) -> dict[str, DeviceInfo]:
         """Get list of devices with their current status."""
         _LOGGER.debug("Fetching device list with status")
@@ -911,6 +910,7 @@ class HisenseApiClient:
         if self._websocket is not None:
             await self._websocket.async_disconnect()
             self._websocket = None
+        await self.oauth_session.close()
 
     def register_status_callback(
         self,
@@ -957,7 +957,7 @@ class HisenseApiClient:
         device = self._devices.get(device_id)
         if not device:
             # If device not in cache, refresh the device list once
-            devices = await self.async_get_devices
+            devices = await self.async_get_devices()
             device = devices.get(device_id)
             if not device:
                 raise HisenseApiError(f"Device not found: {device_id}")

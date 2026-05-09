@@ -205,8 +205,8 @@ logger:
 ### Development Setup
 
 ```bash
-git clone https://github.com/Connectlife-LLC/HomeAssistantPlugin.git
-cd HomeAssistantPlugin
+git clone https://github.com/giuseppe99barchetta/ConnectLife-HA.git
+cd ConnectLife-HA
 # Set up your development environment
 ```
 

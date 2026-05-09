@@ -220,8 +220,14 @@ async def async_setup_entry(
                 if device.type_code == "007":
                     _LOGGER.info("除湿机添加风速进入: %s", device.feature_code)
                     parser = coordinator.api_client.parsers.get(device.device_id)
+                    if not parser:
+                        _LOGGER.warning(
+                            "Skipping dehumidifier fan-speed switches for %s because parser is missing",
+                            device.name,
+                        )
+                        continue
                     _LOGGER.info("除湿机添加风速进入: %s: %s", device.feature_code, parser.attributes)
-                    if parser and "t_fan_speed" in parser.attributes:
+                    if "t_fan_speed" in parser.attributes:
                         _LOGGER.info("除湿机添加风速进入: %s", device.feature_code)
                         fan_attr = parser.attributes['t_fan_speed']
                         _LOGGER.info("除湿机添加风速进入: %s: %s", device.feature_code,
