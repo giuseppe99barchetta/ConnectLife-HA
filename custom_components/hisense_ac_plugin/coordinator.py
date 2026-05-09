@@ -237,13 +237,14 @@ class HisenseACPluginDataUpdateCoordinator(DataUpdateCoordinator):
                         # Update online status
                         online_status = content_data.get("onlinestats")
                         if online_status is not None:
-                            device_data["offlineState"] = DeviceInfo.offline_state_from_online(
-                                int(online_status) == 1
+                            device_data["offlineState"] = DeviceInfo.ws_online_status_to_api_offline_state(
+                                online_status
                             )
                             _LOGGER.debug(
-                                "Updated device %s online status: %s",
+                                "Updated device %s websocket online status=%s mapped_offlineState=%s",
                                 device_id,
-                                "online" if online_status == 1 else "offline"
+                                online_status,
+                                device_data["offlineState"],
                             )
                     else:  # status_devicestatus
                         # Update device status attributes

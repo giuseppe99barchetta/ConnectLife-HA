@@ -82,12 +82,13 @@ class DeviceInfo:
     DEHUMIDIFIER_TYPES = {"007"}
 
     @staticmethod
-    def is_online_from_offline_state(
+    def normalize_api_offline_state(
         offline_state: Any,
         status: dict[str, Any] | None = None,
     ) -> bool:
-        """Translate API/WebSocket offline flag into online boolean.
+        """Translate API `offlineState` flag into online boolean.
 
+        ConnectLife device-list payloads use `offlineState=1` for online devices.
         If cloud omits `offlineState`, infer online from presence of device status
         data instead of forcing entity unavailable.
         """
@@ -106,9 +107,18 @@ class DeviceInfo:
         return bool(status)
 
     @staticmethod
-    def offline_state_from_online(is_online: bool) -> int:
-        """Translate an online boolean back into the API/WebSocket offline flag."""
+    def api_offline_state_from_online(is_online: bool) -> int:
+        """Translate online boolean back into API `offlineState` semantics."""
         return 1 if is_online else 0
+
+    @staticmethod
+    def ws_online_status_to_api_offline_state(online_status: Any) -> int:
+        """Map websocket `onlinestats` value into API-style `offlineState`.
+
+        Websocket payload uses `onlinestats=1` for online.
+        Stored coordinator/device state uses API-style `offlineState=1` for online.
+        """
+        return DeviceInfo.api_offline_state_from_online(str(online_status) == "1")
 
     def __init__(self, data: dict[str, Any]) -> None:
         """Initialize device info."""
@@ -144,7 +154,7 @@ class DeviceInfo:
         self.onOff = self.status.get("t_power")
         self.seq = data.get("seq")
         self.create_time = data.get("createTime")
-        self._is_online = self.is_online_from_offline_state(self.offline_state, self.status)
+        self._is_online = self.normalize_api_offline_state(self.offline_state, self.status)
         self._is_onOff = self.onOff == 1 or self.onOff == "1"
 
         _LOGGER.debug(
