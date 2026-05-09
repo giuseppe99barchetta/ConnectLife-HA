@@ -6,6 +6,7 @@ import sys
 import types
 from enum import IntFlag
 from datetime import timezone
+from types import SimpleNamespace
 
 
 def _install_voluptuous_stub() -> None:
@@ -101,6 +102,7 @@ def _install_homeassistant_stubs() -> None:
     sys.modules["homeassistant.data_entry_flow"] = data_entry_flow
 
     helpers = types.ModuleType("homeassistant.helpers")
+    helpers.dispatcher = SimpleNamespace(async_dispatcher_send=lambda *args, **kwargs: None)
     sys.modules["homeassistant.helpers"] = helpers
 
     update_coordinator = types.ModuleType("homeassistant.helpers.update_coordinator")
@@ -320,6 +322,7 @@ def _install_aiohttp_stub() -> None:
         async def close(self):
             self.closed = True
 
+    module.WSMsgType = SimpleNamespace(TEXT="TEXT", ERROR="ERROR", CLOSED="CLOSED")
     module.ClientError = ClientError
     module.ClientSession = ClientSession
     sys.modules["aiohttp"] = module

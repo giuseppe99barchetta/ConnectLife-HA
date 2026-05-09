@@ -20,6 +20,7 @@ from custom_components.hisense_ac_plugin.water_heater import (
     HisenseWaterHeater,
     STATE_DUAL_MODE,
 )
+from custom_components.hisense_ac_plugin.websocket import HisenseWebSocket
 
 
 class DummyLoop:
@@ -30,6 +31,9 @@ class DummyLoop:
 class DummyHass:
     def __init__(self):
         self.loop = DummyLoop()
+        self.helpers = SimpleNamespace(
+            dispatcher=SimpleNamespace(async_dispatcher_send=lambda *args, **kwargs: None)
+        )
         self.config = SimpleNamespace(language="en", time_zone="UTC")
         self.data = {
             f"{DOMAIN}.translations": {
@@ -45,6 +49,9 @@ class DummyHass:
                 }
             }
         }
+
+    def async_create_task(self, coro):
+        return asyncio.create_task(coro)
 
 
 def build_device(
@@ -210,6 +217,56 @@ def test_climate_setup_accepts_split_ac_family_009_128():
     assert device.is_air_conditioner() is True
     assert len(added) == 1
     assert isinstance(added[0], HisenseClimate)
+
+
+def test_websocket_async_connect_is_non_blocking_and_cancellable():
+    events = []
+
+    class TestWebSocket(HisenseWebSocket):
+        async def _run_forever(self):
+            events.append("started")
+            try:
+                await asyncio.sleep(60)
+            except asyncio.CancelledError:
+                events.append("cancelled")
+                raise
+
+    async def run_test():
+        hass = DummyHass()
+        ws = TestWebSocket(
+            hass,
+            api_client=SimpleNamespace(),
+            message_callback=lambda message: None,
+        )
+        await ws.async_connect()
+        await asyncio.sleep(0)
+        assert ws._task is not None
+        assert "started" in events
+        await ws.async_disconnect()
+        assert ws._task is None
+        assert "cancelled" in events
+
+    asyncio.run(run_test())
+
+
+def test_websocket_connect_failure_does_not_block_startup():
+    class TestWebSocket(HisenseWebSocket):
+        async def _run_forever(self):
+            raise RuntimeError("boom")
+
+    async def run_test():
+        hass = DummyHass()
+        ws = TestWebSocket(
+            hass,
+            api_client=SimpleNamespace(),
+            message_callback=lambda message: None,
+        )
+        await ws.async_connect()
+        await asyncio.sleep(0)
+        assert ws._task is not None
+        await ws.async_disconnect()
+
+    asyncio.run(run_test())
 
 
 async def _async_noop():
