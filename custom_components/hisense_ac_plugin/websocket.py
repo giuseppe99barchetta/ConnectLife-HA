@@ -36,7 +36,7 @@ class HisenseWebSocket:
         self._ws: Optional[aiohttp.ClientWebSocketResponse] = None
         self._phone_code: str = ""
         self._notification_info: Optional[NotificationInfo] = None
-        self._task: Optional[asyncio.Task] = None
+        self._ws_task: Optional[asyncio.Task] = None
         self._closing = False
         self._ping_interval = 30
         self._last_ping = 0
@@ -245,28 +245,33 @@ class HisenseWebSocket:
         _LOGGER.debug("Waiting %s seconds before reconnecting", retry_delay)
         await asyncio.sleep(retry_delay)
 
-    async def async_connect(self) -> None:
-        """Start background WebSocket task without blocking integration setup."""
-        if self._task and not self._task.done():
+    def start_background_task(self) -> None:
+        """Start background WebSocket task outside setup await chain."""
+        if self._ws_task and not self._ws_task.done():
             _LOGGER.debug("WebSocket background task already running")
             return
 
         self._closing = False
-        self._task = self.hass.async_create_task(self._run_forever())
+        self._ws_task = asyncio.create_task(self._run_forever())
         _LOGGER.debug("WebSocket background task created")
+
+    def async_connect(self) -> None:
+        """Schedule background task startup without blocking integration setup."""
+        self.hass.loop.call_soon(self.start_background_task)
+        _LOGGER.debug("WebSocket background task scheduled")
 
     async def async_disconnect(self) -> None:
         """Disconnect from WebSocket server."""
         self._closing = True
-        if self._task:
-            self._task.cancel()
+        if self._ws_task:
+            self._ws_task.cancel()
             with suppress(asyncio.CancelledError):
                 try:
-                    await self._task
+                    await self._ws_task
                 except Exception as err:
                     _LOGGER.debug("WebSocket background task ended during disconnect: %s", err)
         if self._ws:
             await self._ws.close()
         self._ws = None
-        self._task = None
+        self._ws_task = None
         _LOGGER.debug("WebSocket disconnected")

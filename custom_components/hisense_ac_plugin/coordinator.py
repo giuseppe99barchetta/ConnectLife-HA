@@ -56,9 +56,9 @@ class HisenseACPluginDataUpdateCoordinator(DataUpdateCoordinator):
                 self.api_client,
                 self._handle_ws_message
             )
-            await self._websocket.async_connect()
+            self._websocket.async_connect()
             self._websocket_connected = True
-            _LOGGER.info("WebSocket background task started")
+            _LOGGER.info("WebSocket background task scheduled")
             
             # Update initial device statuses
             await self._async_update_data()

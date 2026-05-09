@@ -27,6 +27,9 @@ class DummyLoop:
     def call_soon_threadsafe(self, callback, *args):
         callback(*args)
 
+    def call_soon(self, callback, *args):
+        callback(*args)
+
 
 class DummyHass:
     def __init__(self):
@@ -49,10 +52,6 @@ class DummyHass:
                 }
             }
         }
-
-    def async_create_task(self, coro):
-        return asyncio.create_task(coro)
-
 
 def build_device(
     *,
@@ -238,12 +237,12 @@ def test_websocket_async_connect_is_non_blocking_and_cancellable():
             api_client=SimpleNamespace(),
             message_callback=lambda message: None,
         )
-        await ws.async_connect()
+        ws.async_connect()
         await asyncio.sleep(0)
-        assert ws._task is not None
+        assert ws._ws_task is not None
         assert "started" in events
         await ws.async_disconnect()
-        assert ws._task is None
+        assert ws._ws_task is None
         assert "cancelled" in events
 
     asyncio.run(run_test())
@@ -261,9 +260,9 @@ def test_websocket_connect_failure_does_not_block_startup():
             api_client=SimpleNamespace(),
             message_callback=lambda message: None,
         )
-        await ws.async_connect()
+        ws.async_connect()
         await asyncio.sleep(0)
-        assert ws._task is not None
+        assert ws._ws_task is not None
         await ws.async_disconnect()
 
     asyncio.run(run_test())
