@@ -24,6 +24,13 @@ from .models import DeviceInfo as HisenseDeviceInfo
 
 _LOGGER = logging.getLogger(__name__)
 
+DEHUMIDIFIER_FAN_SPEED_DISPLAY_NAMES = {
+    "自动": "Auto Fan",
+    "中风": "Medium Fan",
+    "高风": "High Fan",
+    "低风": "Low Fan",
+}
+
 # Define switch types
 SWITCH_TYPES = {
     "quiet_mode": {
@@ -85,6 +92,12 @@ def _has_switch_support(
         return key_in_status
 
     return True
+
+
+def _fan_speed_switch_display_info(label: str) -> tuple[str, str]:
+    """Return English fallback metadata for dehumidifier fan-speed switches."""
+    display_name = DEHUMIDIFIER_FAN_SPEED_DISPLAY_NAMES.get(label, f"{label} Fan")
+    return display_name, f"Switch to {display_name}"
 
 
 def _build_zone_switch_definitions(device: HisenseDeviceInfo, parser) -> list[tuple[str, dict[str, str]]]:
@@ -275,12 +288,13 @@ async def async_setup_entry(
                                     continue
 
                                 switch_type = f"fan_speed_{label.lower().replace(' ', '_')}"
+                                display_name, description = _fan_speed_switch_display_info(label)
                                 switch_info = {
                                     "key": fan_attr.key,
-                                    "name": f"{label} 风速",
+                                    "name": display_name,
                                     "icon_on": "mdi:fan",
                                     "icon_off": "mdi:fan-off",
-                                    "description": f"切换到 {label} 风速",
+                                    "description": description,
                                     "expected_value": value_str
                                 }
                                 entity = HisenseSwitch(
@@ -295,12 +309,13 @@ async def async_setup_entry(
                             for value_str, label in fan_attr.value_map.items():
                                 _LOGGER.debug("Creating dehumidifier fan-speed switch feature=%s value=%s label=%s", device.feature_code, value_str, label)
                                 switch_type = f"fan_speed_{label.lower().replace(' ', '_')}"
+                                display_name, description = _fan_speed_switch_display_info(label)
                                 switch_info = {
                                     "key": fan_attr.key,
-                                    "name": f"{label} 风速",
+                                    "name": display_name,
                                     "icon_on": "mdi:fan",
                                     "icon_off": "mdi:fan-off",
-                                    "description": f"切换到 {label} 风速",
+                                    "description": description,
                                     "expected_value": value_str
                                 }
                                 entity = HisenseSwitch(

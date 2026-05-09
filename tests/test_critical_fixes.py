@@ -333,6 +333,58 @@ def test_sensor_metadata_uses_english_fallback_strings():
         assert not _contains_chinese(sensor_info["description"]), sensor_type
 
 
+def test_switch_metadata_uses_english_fallback_strings_for_dehumidifier_fan_speed():
+    hass = DummyHass()
+    entry = SimpleNamespace(entry_id="entry-1")
+    device = build_device(
+        type_code="007",
+        feature_code="299",
+        status={
+            StatusKey.POWER: "1",
+            StatusKey.FAN_SPEED: "2",
+        },
+    )
+    parser = SimpleNamespace(
+        attributes={
+            StatusKey.FAN_SPEED: SimpleNamespace(
+                key=StatusKey.FAN_SPEED,
+                value_map={"0": "低风", "1": "高风", "2": "自动", "3": "中风"},
+            )
+        }
+    )
+    coordinator = SimpleNamespace(
+        hass=hass,
+        data={device.device_id: device},
+        api_client=SimpleNamespace(
+            parsers={device.device_id: parser},
+            static_data={
+                device.device_id: {
+                    "Wind_speed_gear_selection_auto": "1",
+                    "Wind_speed_gear_selection_middle": "1",
+                    "Wind_speed_gear_selection_high": "1",
+                    "Wind_speed_gear_selection_low": "1",
+                }
+            },
+        ),
+    )
+    hass.data[DOMAIN] = {entry.entry_id: coordinator}
+    added = []
+
+    async def run_test():
+        await setup_switches(hass, entry, added.extend)
+
+    asyncio.run(run_test())
+
+    fan_speed_entities = [
+        entity for entity in added if getattr(entity, "_switch_type", "").startswith("fan_speed_")
+    ]
+
+    assert fan_speed_entities
+    for entity in fan_speed_entities:
+        assert not _contains_chinese(entity._switch_info["name"]), entity._switch_type
+        assert not _contains_chinese(entity._switch_info["description"]), entity._switch_type
+
+
 def test_climate_009_128_target_temp_uses_t_temp_key():
     climate = _build_climate_with_parser(
         status={
