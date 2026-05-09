@@ -10,6 +10,9 @@ from custom_components.hisense_ac_plugin.climate import (
     HisenseClimate,
     async_setup_entry as setup_climate,
 )
+from custom_components.hisense_ac_plugin import climate as climate_module
+from homeassistant.components.climate import HVACMode
+from homeassistant.components.climate.const import SWING_OFF, SWING_VERTICAL
 from custom_components.hisense_ac_plugin.config_flow import HisenseOptionsFlowHandler
 from custom_components.hisense_ac_plugin.coordinator import (
     HisenseACPluginDataUpdateCoordinator,
@@ -247,6 +250,100 @@ def test_climate_009_128_available_when_offline_state_missing_but_status_present
     assert climate.available is True
 
 
+def test_climate_009_128_target_temp_uses_t_temp_key():
+    climate = _build_climate_with_parser(
+        status={
+            StatusKey.POWER: "1",
+            StatusKey.TEMPERATURE: "24",
+            StatusKey.TARGET_TEMP: "25",
+            StatusKey.MODE: "2",
+            StatusKey.T_TEMP_TYPE: "0",
+        }
+    )
+    assert climate.target_temperature == 25.0
+
+
+def test_climate_009_128_missing_temp_range_logs_debug_not_warning():
+    warnings = []
+    debug_messages = []
+    original_warning = climate_module._LOGGER.warning
+    original_debug = climate_module._LOGGER.debug
+    climate_module._LOGGER.warning = lambda message, *args, **kwargs: warnings.append(
+        message % args if args else message
+    )
+    climate_module._LOGGER.debug = lambda message, *args, **kwargs: debug_messages.append(
+        message % args if args else message
+    )
+    try:
+        _build_climate_with_parser(
+            parser_attrs={
+                StatusKey.MODE: SimpleNamespace(value_map={"0": "送风", "1": "制热", "2": "制冷", "3": "除湿", "4": "自动"}),
+                StatusKey.FAN_SPEED: SimpleNamespace(value_map={"0": "自动", "6": "中低", "7": "中", "8": "中高", "9": "高"}),
+                StatusKey.SWING: SimpleNamespace(value_map={"0": "取消", "1": "开启"}),
+            }
+        )
+    finally:
+        climate_module._LOGGER.warning = original_warning
+        climate_module._LOGGER.debug = original_debug
+
+    assert all("Target temperature attribute or value range not found" not in message for message in warnings)
+    assert any("Target temperature attribute or value range not found" in message for message in debug_messages)
+
+
+def test_climate_009_128_mode_zero_maps_to_fan_only():
+    climate = _build_climate_with_parser(
+        status={
+            StatusKey.POWER: "1",
+            StatusKey.TEMPERATURE: "24",
+            StatusKey.TARGET_TEMP: "25",
+            StatusKey.MODE: "0",
+            StatusKey.T_TEMP_TYPE: "0",
+        }
+    )
+    assert climate.hvac_mode == HVACMode.FAN_ONLY
+
+
+def test_climate_009_128_fan_speed_fallback_and_english_modes():
+    climate = _build_climate_with_parser(
+        status={
+            StatusKey.POWER: "1",
+            StatusKey.TEMPERATURE: "24",
+            StatusKey.TARGET_TEMP: "25",
+            StatusKey.MODE: "2",
+            StatusKey.T_TEMP_TYPE: "0",
+            "t_fan_speed_s": "9",
+        }
+    )
+    assert climate.fan_mode == "high"
+    assert "ultra_low" in climate.fan_modes
+    assert "ultra_high" in climate.fan_modes
+
+
+def test_climate_009_128_vertical_swing_only():
+    climate = _build_climate_with_parser(
+        status={
+            StatusKey.POWER: "1",
+            StatusKey.TEMPERATURE: "24",
+            StatusKey.TARGET_TEMP: "25",
+            StatusKey.MODE: "2",
+            StatusKey.T_TEMP_TYPE: "0",
+            StatusKey.SWING: "1",
+        },
+        parser_attrs={
+            StatusKey.MODE: SimpleNamespace(value_map={"0": "送风", "1": "制热", "2": "制冷", "3": "除湿", "4": "自动"}),
+            StatusKey.TARGET_TEMP: SimpleNamespace(value_range="16~32,61~90"),
+            StatusKey.FAN_SPEED: SimpleNamespace(value_map={"0": "自动", "6": "中低", "7": "中", "8": "中高", "9": "高"}),
+            StatusKey.SWING: SimpleNamespace(value_map={"0": "取消", "1": "开启"}),
+        },
+        static_data={
+            "Upper_and_lower_damper_control": "1",
+            "Left_and_right_damper_control": "0",
+        },
+    )
+    assert climate.swing_mode == SWING_VERTICAL
+    assert climate._attr_swing_modes == [SWING_OFF, SWING_VERTICAL]
+
+
 def test_no_warning_for_ac_only_empty_number_platform():
     _assert_no_no_entities_warning(number_module, setup_number)
 
@@ -331,6 +428,43 @@ def _build_climate_device_for_availability(offline_state):
         hass=hass,
         api_client=SimpleNamespace(parsers={device.device_id: None}, static_data={}),
         get_device=lambda _device_id: device,
+    )
+    return HisenseClimate(coordinator, device)
+
+
+def _build_climate_with_parser(status=None, parser_attrs=None, static_data=None):
+    hass = DummyHass()
+    device = build_device(
+        type_code="009",
+        feature_code="128",
+        status=status
+        or {
+            StatusKey.POWER: "1",
+            StatusKey.TEMPERATURE: "24",
+            StatusKey.TARGET_TEMP: "25",
+            StatusKey.MODE: "2",
+            StatusKey.T_TEMP_TYPE: "0",
+            StatusKey.FAN_SPEED: "9",
+            StatusKey.SWING: "0",
+        },
+    )
+    default_parser_attrs = {
+        StatusKey.MODE: SimpleNamespace(value_map={"0": "送风", "1": "制热", "2": "制冷", "3": "除湿", "4": "自动"}),
+        StatusKey.TARGET_TEMP: SimpleNamespace(value_range="16~32,61~90"),
+        StatusKey.FAN_SPEED: SimpleNamespace(value_map={"0": "自动", "6": "中低", "7": "中", "8": "中高", "9": "高"}),
+        StatusKey.SWING: SimpleNamespace(value_map={"0": "取消", "1": "开启"}),
+    }
+    if parser_attrs is not None:
+        default_parser_attrs = parser_attrs
+    parser = SimpleNamespace(attributes=default_parser_attrs)
+    coordinator = SimpleNamespace(
+        hass=hass,
+        api_client=SimpleNamespace(
+            parsers={device.device_id: parser},
+            static_data={device.device_id: static_data or {}},
+        ),
+        get_device=lambda _device_id: device,
+        async_control_device=None,
     )
     return HisenseClimate(coordinator, device)
 
