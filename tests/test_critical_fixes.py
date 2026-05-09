@@ -12,8 +12,10 @@ from custom_components.hisense_ac_plugin.climate import (
     async_setup_entry as setup_climate,
 )
 from custom_components.hisense_ac_plugin import climate as climate_module
+from custom_components.hisense_ac_plugin.api import HisenseApiClient
+from custom_components.hisense_ac_plugin.devices import BaseBeanParser
 from homeassistant.components.climate import HVACMode
-from homeassistant.components.climate.const import SWING_OFF, SWING_VERTICAL
+from homeassistant.components.climate.const import SWING_BOTH, SWING_HORIZONTAL, SWING_OFF, SWING_VERTICAL
 from custom_components.hisense_ac_plugin.config_flow import HisenseOptionsFlowHandler
 from custom_components.hisense_ac_plugin.coordinator import (
     HisenseACPluginDataUpdateCoordinator,
@@ -477,6 +479,74 @@ def test_climate_009_128_vertical_swing_only():
     )
     assert climate.swing_mode == SWING_VERTICAL
     assert climate._attr_swing_modes == [SWING_OFF, SWING_VERTICAL]
+
+
+def test_climate_009_128_supports_horizontal_and_both_swing_when_lr_key_present():
+    climate = _build_climate_with_parser(
+        status={
+            StatusKey.POWER: "1",
+            StatusKey.TEMPERATURE: "24",
+            StatusKey.TARGET_TEMP: "25",
+            StatusKey.MODE: "2",
+            StatusKey.T_TEMP_TYPE: "0",
+            StatusKey.SWING: "1",
+            "t_left_right": "1",
+        },
+        parser_attrs={
+            StatusKey.MODE: SimpleNamespace(value_map={"0": "送风", "1": "制热", "2": "制冷", "3": "除湿", "4": "自动"}),
+            StatusKey.TARGET_TEMP: SimpleNamespace(value_range="16~32,61~90"),
+            StatusKey.FAN_SPEED: SimpleNamespace(value_map={"0": "自动", "6": "中低", "7": "中", "8": "中高", "9": "高"}),
+            StatusKey.SWING: SimpleNamespace(value_map={"0": "取消", "1": "开启"}),
+            "t_left_right": SimpleNamespace(value_map={"0": "取消", "1": "开启"}),
+        },
+        static_data={
+            "Upper_and_lower_damper_control": "1",
+            "Left_and_right_damper_control": "1",
+        },
+    )
+    assert climate.swing_mode == SWING_BOTH
+    assert climate._attr_swing_modes == [SWING_OFF, SWING_VERTICAL, SWING_HORIZONTAL, SWING_BOTH]
+
+
+def test_climate_009_128_supports_horizontal_alias_key_when_exposed():
+    climate = _build_climate_with_parser(
+        status={
+            StatusKey.POWER: "1",
+            StatusKey.TEMPERATURE: "24",
+            StatusKey.TARGET_TEMP: "25",
+            StatusKey.MODE: "2",
+            StatusKey.T_TEMP_TYPE: "0",
+            StatusKey.SWING: "0",
+            "t_lr": "1",
+        },
+        parser_attrs={
+            StatusKey.MODE: SimpleNamespace(value_map={"0": "送风", "1": "制热", "2": "制冷", "3": "除湿", "4": "自动"}),
+            StatusKey.TARGET_TEMP: SimpleNamespace(value_range="16~32,61~90"),
+            StatusKey.FAN_SPEED: SimpleNamespace(value_map={"0": "自动", "6": "中低", "7": "中", "8": "中高", "9": "高"}),
+            StatusKey.SWING: SimpleNamespace(value_map={"0": "取消", "1": "开启"}),
+            "t_lr": SimpleNamespace(value_map={"0": "取消", "1": "开启"}),
+        },
+        static_data={
+            "Upper_and_lower_damper_control": "1",
+            "Left_and_right_damper_control": "1",
+        },
+    )
+    assert climate.swing_mode == SWING_HORIZONTAL
+    assert SWING_HORIZONTAL in climate._attr_swing_modes
+    assert SWING_BOTH in climate._attr_swing_modes
+
+
+def test_filtered_parser_keeps_horizontal_swing_alias_when_property_list_exposes_it():
+    parser = HisenseApiClient.create_filtered_parser(
+        BaseBeanParser(),
+        [
+            {"propertyKey": "t_work_mode", "propertyValueList": "0,1,2,3,4"},
+            {"propertyKey": "t_up_down", "propertyValueList": "0,1"},
+            {"propertyKey": "t_lr", "propertyValueList": "0,1"},
+        ],
+    )
+
+    assert "t_lr" in parser.attributes
 
 
 def test_no_warning_for_ac_only_empty_number_platform():

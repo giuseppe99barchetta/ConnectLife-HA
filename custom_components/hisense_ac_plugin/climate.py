@@ -59,6 +59,7 @@ HA_MODE_TO_STR = {
 STR_TO_HA_MODE = {v: k for k, v in HA_MODE_TO_STR.items()}
 
 RAW_FAN_SPEED_FALLBACK_KEY = "t_fan_speed_s"
+HORIZONTAL_SWING_KEYS = ("t_left_right", "t_lr", "t_swing_lr", "t_l_r")
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -244,6 +245,21 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
         if not hasattr(self, '_attr_swing_modes'):
             self._attr_swing_modes = [SWING_OFF, SWING_VERTICAL]
 
+    def _get_horizontal_swing_key(self) -> str | None:
+        """Return the LR swing key exposed by this device, if any."""
+        parser_attrs = getattr(self._parser, "attributes", {}) if hasattr(self, "_parser") and self._parser else {}
+
+        for key in HORIZONTAL_SWING_KEYS:
+            if key in parser_attrs:
+                return key
+
+        device_status = self._device.status if self._device else {}
+        for key in HORIZONTAL_SWING_KEYS:
+            if key in device_status:
+                return key
+
+        return None
+
     # async def async_set_preset_mode(self, preset_mode: str) -> None:
     #     """Set the preset mode."""
     #     if preset_mode not in self.preset_modes:
@@ -330,12 +346,13 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
             return
 
         # Otherwise continue checking horizontal swing.
-        horizontal_swing_attr = self._parser.attributes.get("t_left_right")
+        horizontal_swing_key = self._get_horizontal_swing_key()
+        horizontal_swing_attr = self._parser.attributes.get(horizontal_swing_key) if horizontal_swing_key else None
         if horizontal_swing_attr and horizontal_swing_attr.value_map:
             if SWING_VERTICAL in swing_modes:
                 if left_and_right == '1':
                     swing_modes.append(SWING_HORIZONTAL)
-                    # swing_modes.append(SWING_BOTH)
+                    swing_modes.append(SWING_BOTH)
             else:
                 if left_and_right == '1':
                     swing_modes.append(SWING_HORIZONTAL)
@@ -549,7 +566,8 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
         vertical_swing = self._device.get_status_value(StatusKey.SWING)
 
         # Get horizontal swing status
-        horizontal_swing = self._device.get_status_value("t_left_right")
+        horizontal_swing_key = self._get_horizontal_swing_key()
+        horizontal_swing = self._device.get_status_value(horizontal_swing_key) if horizontal_swing_key else None
         # Feature 199 does not support horizontal swing.
         if self._current_feature_code == '199':
             horizontal_swing = None
@@ -560,8 +578,8 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
             return SWING_VERTICAL
         elif (not vertical_swing or vertical_swing == "0") and horizontal_swing == "1":
             return SWING_HORIZONTAL
-        # elif vertical_swing == "1" and horizontal_swing == "1":
-        #     return SWING_BOTH
+        elif vertical_swing == "1" and horizontal_swing == "1":
+            return SWING_BOTH
 
         # Default to off if we can't determine the mode
         return SWING_OFF
@@ -713,20 +731,25 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
         """Set new target swing operation."""
         try:
             properties = {}
+            horizontal_swing_key = self._get_horizontal_swing_key()
 
             # Determine vertical and horizontal swing settings based on mode
             if swing_mode == SWING_OFF:
                 properties[StatusKey.SWING] = "0"
-                properties["t_left_right"] = "0"
+                if horizontal_swing_key:
+                    properties[horizontal_swing_key] = "0"
             elif swing_mode == SWING_VERTICAL:
                 properties[StatusKey.SWING] = "1"
-                properties["t_left_right"] = "0"
+                if horizontal_swing_key:
+                    properties[horizontal_swing_key] = "0"
             elif swing_mode == SWING_HORIZONTAL:
                 properties[StatusKey.SWING] = "0"
-                properties["t_left_right"] = "1"
-            # elif swing_mode == SWING_BOTH:
-            #     properties[StatusKey.SWING] = "1"
-            #     properties["t_left_right"] = "1"
+                if horizontal_swing_key:
+                    properties[horizontal_swing_key] = "1"
+            elif swing_mode == SWING_BOTH:
+                properties[StatusKey.SWING] = "1"
+                if horizontal_swing_key:
+                    properties[horizontal_swing_key] = "1"
 
             # Check which properties are supported by the device
             if hasattr(self, '_parser') and self._parser:
@@ -736,8 +759,12 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
                 if StatusKey.SWING in properties and self._parser.attributes.get(StatusKey.SWING):
                     supported_properties[StatusKey.SWING] = properties[StatusKey.SWING]
 
-                if "t_left_right" in properties and self._parser.attributes.get("t_left_right"):
-                    supported_properties["t_left_right"] = properties["t_left_right"]
+                if (
+                    horizontal_swing_key
+                    and horizontal_swing_key in properties
+                    and self._parser.attributes.get(horizontal_swing_key)
+                ):
+                    supported_properties[horizontal_swing_key] = properties[horizontal_swing_key]
 
                 # Send the command if we have supported properties
                 if supported_properties:

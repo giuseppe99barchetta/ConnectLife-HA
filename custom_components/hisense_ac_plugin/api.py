@@ -37,6 +37,7 @@ from .devices import get_device_parser, BaseBeanParser, BaseDeviceParser, SplitW
 from .models import DeviceInfo, HisenseApiError
 
 _LOGGER = logging.getLogger(__name__)
+HORIZONTAL_SWING_PROPERTY_KEYS = {"t_left_right", "t_lr", "t_swing_lr", "t_l_r"}
 
 class HisenseApiClient:
     """Hisense API client."""
@@ -824,6 +825,31 @@ class HisenseApiClient:
             if not isinstance(key, str) or not key:
                 continue
             if key in filtered_attributes:
+                continue
+
+            if key in HORIZONTAL_SWING_PROPERTY_KEYS:
+                value_range = str(prop.get("propertyValueList") or "")
+                if value_range not in {"0,1", "1,0"}:
+                    continue
+
+                read_write_raw = str(
+                    prop.get("readWrite")
+                    or prop.get("readWriteType")
+                    or prop.get("rw")
+                    or "RW"
+                ).upper()
+                read_write = "RW" if "W" in read_write_raw else "R"
+
+                filtered_attributes[key] = DeviceAttribute(
+                    key=key,
+                    name=str(prop.get("propertyName") or key),
+                    attr_type="Enum",
+                    step=1,
+                    value_range=value_range,
+                    value_map={"0": "取消", "1": "开启"},
+                    read_write=read_write,
+                )
+                _LOGGER.debug("Added dynamic horizontal swing attribute: %s", key)
                 continue
 
             key_lower = key.lower()
