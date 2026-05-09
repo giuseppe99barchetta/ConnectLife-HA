@@ -78,6 +78,7 @@ def _install_homeassistant_stubs() -> None:
 
     class UnitOfTemperature:
         CELSIUS = "C"
+        FAHRENHEIT = "F"
 
     class Platform:
         CLIMATE = "climate"
@@ -260,10 +261,15 @@ def _install_homeassistant_stubs() -> None:
 
     climate = types.ModuleType("homeassistant.components.climate")
 
+    class ClimateEntity:
+        pass
+
     class ClimateEntityFeature(IntFlag):
         TARGET_TEMPERATURE = 1
         FAN_MODE = 2
         SWING_MODE = 4
+        TURN_ON = 8
+        TURN_OFF = 16
 
     class HVACMode:
         AUTO = "auto"
@@ -273,6 +279,7 @@ def _install_homeassistant_stubs() -> None:
         HEAT = "heat"
         OFF = "off"
 
+    climate.ClimateEntity = ClimateEntity
     climate.ClimateEntityFeature = ClimateEntityFeature
     climate.HVACMode = HVACMode
     sys.modules["homeassistant.components.climate"] = climate

@@ -76,6 +76,11 @@ class NotificationInfo:
 class DeviceInfo:
     """Device information class."""
 
+    AIR_CONDITIONER_TYPES = {"009", "008", "006"}
+    GENERIC_DEVICE_TYPES = AIR_CONDITIONER_TYPES | {"007", "016", "035"}
+    WATER_HEATER_TYPES = {"016"}
+    DEHUMIDIFIER_TYPES = {"007"}
+
     @staticmethod
     def is_online_from_offline_state(offline_state: Any) -> bool:
         """Translate the API/WebSocket offline flag into an online boolean."""
@@ -169,22 +174,23 @@ class DeviceInfo:
 
     def is_supported(self) -> bool:
         """Check if this device type is supported."""
-        supported_device_types = ["009", "008", "006"]
-        return self.type_code in supported_device_types
+        return self.is_air_conditioner()
+
+    def is_air_conditioner(self) -> bool:
+        """Return True for AC families handled by climate path."""
+        return self.type_code in self.AIR_CONDITIONER_TYPES
 
     def is_devices(self) -> bool:
         """Check if this device type is supported."""
-        #009 分体空调 008 窗机 007 除湿机 006 移动空调
-        supported_device_types = ["009", "008", "007", "006", "016", "035"]
-        return self.type_code in supported_device_types
+        return self.type_code in self.GENERIC_DEVICE_TYPES
+
     def is_water(self) -> bool:
         """Check if this device type is supported."""
-        supported_device_types = ["016"]
-        return self.type_code in supported_device_types
+        return self.type_code in self.WATER_HEATER_TYPES
+
     def is_humidityr(self) -> bool:
         """Check if this device type is supported."""
-        supported_device_types = ["007"]
-        return self.type_code in supported_device_types
+        return self.type_code in self.DEHUMIDIFIER_TYPES
     def get_status_value(self, key: str, default: Any = None) -> Any:
         """Get value from status list."""
         return self.status.get(key, default)

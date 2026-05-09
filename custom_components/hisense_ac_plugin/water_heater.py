@@ -72,7 +72,9 @@ async def async_setup_entry(
         ]
         for device_id, device in devices.items():
             _LOGGER.debug("Processing 035: %s", device.to_dict())
-            if isinstance(device, HisenseDeviceInfo) and device.type_code == "035" and device.feature_code == "699":
+            if not isinstance(device, HisenseDeviceInfo) or device.type_code != "035":
+                continue
+            if device.feature_code == "699":
                 _LOGGER.info(
                     "Adding 035 entity for device: %s (type: %s-%s)",
                     device.name,
@@ -83,7 +85,7 @@ async def async_setup_entry(
                 entities.append(entity)
             else:
                 _LOGGER.warning(
-                    "Skipping unsupported device: %s-%s (%s)",
+                    "Skipping unsupported water-heater device: %s-%s (%s)",
                     getattr(device, 'type_code', None),
                     getattr(device, 'feature_code', None),
                     getattr(device, 'name', None)

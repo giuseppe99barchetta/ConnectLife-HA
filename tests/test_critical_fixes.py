@@ -6,6 +6,10 @@ from types import SimpleNamespace
 
 from custom_components.hisense_ac_plugin import async_unload_entry
 from custom_components.hisense_ac_plugin.const import DOMAIN, StatusKey
+from custom_components.hisense_ac_plugin.climate import (
+    HisenseClimate,
+    async_setup_entry as setup_climate,
+)
 from custom_components.hisense_ac_plugin.coordinator import (
     HisenseACPluginDataUpdateCoordinator,
 )
@@ -160,3 +164,40 @@ def test_async_unload_entry_calls_coordinator_cleanup():
     assert result is True
     assert cleanup_calls == ["cleanup"]
     assert entry.entry_id not in hass.data[DOMAIN]
+
+
+def test_climate_setup_accepts_split_ac_family_009_128():
+    hass = DummyHass()
+    entry = SimpleNamespace(entry_id="entry-1")
+    device = build_device(
+        type_code="009",
+        feature_code="128",
+        status={
+            StatusKey.POWER: "1",
+            StatusKey.TEMPERATURE: "24",
+            StatusKey.TARGET_TEMP: "25",
+            StatusKey.MODE: "0",
+            StatusKey.T_TEMP_TYPE: "0",
+        },
+    )
+    coordinator = SimpleNamespace(
+        hass=hass,
+        data={device.device_id: device},
+        api_client=SimpleNamespace(parsers={}, static_data={}),
+        async_config_entry_first_refresh=_async_noop,
+    )
+    hass.data[DOMAIN] = {entry.entry_id: coordinator}
+    added = []
+
+    async def run_test():
+        await setup_climate(hass, entry, added.extend)
+
+    asyncio.run(run_test())
+
+    assert device.is_air_conditioner() is True
+    assert len(added) == 1
+    assert isinstance(added[0], HisenseClimate)
+
+
+async def _async_noop():
+    return None

@@ -83,7 +83,7 @@ async def async_setup_entry(
         entities = []
         for device_id, device in devices.items():
             _LOGGER.debug("Processing device: %s", device.to_dict())
-            if isinstance(device, HisenseDeviceInfo) and device.is_supported():
+            if isinstance(device, HisenseDeviceInfo) and device.is_air_conditioner():
                 _LOGGER.info(
                     "Adding climate entity for device: %s (type: %s-%s)",
                     device.name,
@@ -758,4 +758,3 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
         """仅在超时后处理协调器更新"""
         if time.time() - self._last_command_time >= self.wait_time:
             super()._handle_coordinator_update()
-
