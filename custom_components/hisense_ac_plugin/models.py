@@ -82,9 +82,28 @@ class DeviceInfo:
     DEHUMIDIFIER_TYPES = {"007"}
 
     @staticmethod
-    def is_online_from_offline_state(offline_state: Any) -> bool:
-        """Translate the API/WebSocket offline flag into an online boolean."""
-        return str(offline_state) == "0"
+    def is_online_from_offline_state(
+        offline_state: Any,
+        status: dict[str, Any] | None = None,
+    ) -> bool:
+        """Translate API/WebSocket offline flag into online boolean.
+
+        If cloud omits `offlineState`, infer online from presence of device status
+        data instead of forcing entity unavailable.
+        """
+        if isinstance(offline_state, bool):
+            return not offline_state
+
+        if offline_state is None:
+            return bool(status)
+
+        normalized = str(offline_state).strip().lower()
+        if normalized in {"0", "false", "online"}:
+            return True
+        if normalized in {"1", "true", "offline"}:
+            return False
+
+        return bool(status)
 
     @staticmethod
     def offline_state_from_online(is_online: bool) -> int:
@@ -125,7 +144,7 @@ class DeviceInfo:
         self.onOff = self.status.get("t_power")
         self.seq = data.get("seq")
         self.create_time = data.get("createTime")
-        self._is_online = self.is_online_from_offline_state(self.offline_state)
+        self._is_online = self.is_online_from_offline_state(self.offline_state, self.status)
         self._is_onOff = self.onOff == 1 or self.onOff == "1"
 
         _LOGGER.debug(

@@ -22,6 +22,7 @@ from custom_components.hisense_ac_plugin.water_heater import (
 )
 from custom_components.hisense_ac_plugin.websocket import HisenseWebSocket
 
+MISSING = object()
 
 class DummyLoop:
     def call_soon_threadsafe(self, callback, *args):
@@ -62,19 +63,19 @@ def build_device(
     offline_state=1,
     status=None,
 ):
-    return DeviceInfo(
-        {
-            "deviceId": device_id,
-            "puid": puid,
-            "deviceNickName": "Device",
-            "deviceFeatureCode": feature_code,
-            "deviceFeatureName": "Feature",
-            "deviceTypeCode": type_code,
-            "deviceTypeName": "Type",
-            "offlineState": offline_state,
-            "statusList": status or {StatusKey.POWER: "1"},
-        }
-    )
+    data = {
+        "deviceId": device_id,
+        "puid": puid,
+        "deviceNickName": "Device",
+        "deviceFeatureCode": feature_code,
+        "deviceFeatureName": "Feature",
+        "deviceTypeCode": type_code,
+        "deviceTypeName": "Type",
+        "statusList": status or {StatusKey.POWER: "1"},
+    }
+    if offline_state is not MISSING:
+        data["offlineState"] = offline_state
+    return DeviceInfo(data)
 
 
 def test_websocket_wifi_status_marks_offline_state_zero_as_online():
@@ -218,6 +219,21 @@ def test_climate_setup_accepts_split_ac_family_009_128():
     assert isinstance(added[0], HisenseClimate)
 
 
+def test_climate_009_128_available_when_offline_state_zero_int():
+    climate = _build_climate_device_for_availability(0)
+    assert climate.available is True
+
+
+def test_climate_009_128_available_when_offline_state_zero_str():
+    climate = _build_climate_device_for_availability("0")
+    assert climate.available is True
+
+
+def test_climate_009_128_available_when_offline_state_missing_but_status_present():
+    climate = _build_climate_device_for_availability(MISSING)
+    assert climate.available is True
+
+
 def test_websocket_async_connect_is_non_blocking_and_cancellable():
     events = []
 
@@ -270,3 +286,25 @@ def test_websocket_connect_failure_does_not_block_startup():
 
 async def _async_noop():
     return None
+
+
+def _build_climate_device_for_availability(offline_state):
+    hass = DummyHass()
+    device = build_device(
+        type_code="009",
+        feature_code="128",
+        offline_state=offline_state,
+        status={
+            StatusKey.POWER: "1",
+            StatusKey.TEMPERATURE: "24",
+            StatusKey.TARGET_TEMP: "25",
+            StatusKey.MODE: "0",
+            StatusKey.T_TEMP_TYPE: "0",
+        },
+    )
+    coordinator = SimpleNamespace(
+        hass=hass,
+        api_client=SimpleNamespace(parsers={device.device_id: None}, static_data={}),
+        get_device=lambda _device_id: device,
+    )
+    return HisenseClimate(coordinator, device)

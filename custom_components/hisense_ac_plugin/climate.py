@@ -363,13 +363,50 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
         """Get current device data from coordinator."""
         device = self.coordinator.get_device(self._device_id)
         if device:
-            _LOGGER.debug("Retrieved device %s with status: %s", self._device_id, device.status)
+            _LOGGER.debug(
+                "Retrieved climate device %s (%s-%s) offlineState=%s normalized_online=%s status_keys=%s",
+                device.name,
+                device.type_code,
+                device.feature_code,
+                device.offline_state,
+                device.is_online,
+                sorted(device.status.keys()),
+            )
         return device
 
     @property
     def available(self) -> bool:
         """Return if entity is available."""
-        return self._device is not None and self._device.is_online
+        device = self._device
+        parser_exists = hasattr(self, "_parser") and self._parser is not None
+
+        if device is None:
+            _LOGGER.debug(
+                "Climate availability false: device missing from coordinator device_id=%s parser_exists=%s",
+                self._device_id,
+                parser_exists,
+            )
+            return False
+
+        status_keys = sorted(device.status.keys())
+        availability = device.is_online
+        _LOGGER.debug(
+            "Climate availability check device=%s type=%s-%s offlineState=%s normalized_online=%s parser_exists=%s status_keys=%s result=%s",
+            device.name,
+            device.type_code,
+            device.feature_code,
+            device.offline_state,
+            device.is_online,
+            parser_exists,
+            status_keys,
+            availability,
+        )
+        if not availability:
+            _LOGGER.debug(
+                "Climate unavailable reason device=%s offlineState indicates offline or status missing",
+                device.name,
+            )
+        return availability
 
     @property
     def current_temperature(self) -> float | None:

@@ -268,7 +268,7 @@ async def async_setup_entry(
                 )
 
         if not entities:
-            _LOGGER.warning("No supported numbers found")
+            _LOGGER.debug("No supported numbers found")
             return
 
         _LOGGER.info("Adding %d number entities", len(entities))
