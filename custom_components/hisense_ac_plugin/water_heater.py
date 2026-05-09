@@ -93,7 +93,7 @@ async def async_setup_entry(
         if entities:
             async_add_entities(entities)
         else:
-            _LOGGER.warning("No supported water heaters found")
+            _LOGGER.debug("No supported water heaters found")
 
     except Exception as err:
         _LOGGER.error("Failed to setup water heater platform: %s", err)

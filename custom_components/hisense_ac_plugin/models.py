@@ -92,15 +92,15 @@ class DeviceInfo:
         data instead of forcing entity unavailable.
         """
         if isinstance(offline_state, bool):
-            return not offline_state
+            return offline_state
 
         if offline_state is None:
             return bool(status)
 
         normalized = str(offline_state).strip().lower()
-        if normalized in {"0", "false", "online"}:
+        if normalized in {"1", "true", "online"}:
             return True
-        if normalized in {"1", "true", "offline"}:
+        if normalized in {"0", "false", "offline"}:
             return False
 
         return bool(status)
@@ -108,7 +108,7 @@ class DeviceInfo:
     @staticmethod
     def offline_state_from_online(is_online: bool) -> int:
         """Translate an online boolean back into the API/WebSocket offline flag."""
-        return 0 if is_online else 1
+        return 1 if is_online else 0
 
     def __init__(self, data: dict[str, Any]) -> None:
         """Initialize device info."""
@@ -148,10 +148,12 @@ class DeviceInfo:
         self._is_onOff = self.onOff == 1 or self.onOff == "1"
 
         _LOGGER.debug(
-            "Device %s (type: %s-%s) onOff: %s, _is_onOff: %s",
-            self.feature_code,
+            "Device online normalization name=%s type=%s-%s raw_offlineState=%s normalized_online=%s onOff=%s normalized_on=%s",
+            self.name,
             self.type_code, 
             self.feature_code, 
+            self.offline_state,
+            self._is_online,
             self.onOff,
             self._is_onOff
         )

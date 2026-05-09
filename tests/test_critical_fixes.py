@@ -10,6 +10,7 @@ from custom_components.hisense_ac_plugin.climate import (
     HisenseClimate,
     async_setup_entry as setup_climate,
 )
+from custom_components.hisense_ac_plugin.config_flow import HisenseOptionsFlowHandler
 from custom_components.hisense_ac_plugin.coordinator import (
     HisenseACPluginDataUpdateCoordinator,
 )
@@ -78,7 +79,7 @@ def build_device(
     return DeviceInfo(data)
 
 
-def test_websocket_wifi_status_marks_offline_state_zero_as_online():
+def test_websocket_wifi_status_marks_offline_state_one_as_online():
     hass = DummyHass()
     coordinator = HisenseACPluginDataUpdateCoordinator(
         hass,
@@ -94,7 +95,7 @@ def test_websocket_wifi_status_marks_offline_state_zero_as_online():
         }
     )
 
-    assert coordinator._devices["dev1"].offline_state == 0
+    assert coordinator._devices["dev1"].offline_state == 1
     assert coordinator._devices["dev1"].is_online is True
 
 
@@ -174,6 +175,12 @@ def test_async_unload_entry_calls_coordinator_cleanup():
     assert entry.entry_id not in hass.data[DOMAIN]
 
 
+def test_options_flow_uses_private_config_entry_storage():
+    entry = SimpleNamespace(entry_id="entry-1", data={})
+    flow = HisenseOptionsFlowHandler(entry)
+    assert flow._config_entry is entry
+
+
 def test_switch_scheduled_update_does_not_await_none():
     switch = HisenseSwitch.__new__(HisenseSwitch)
     switch._last_action_time = 0
@@ -219,13 +226,13 @@ def test_climate_setup_accepts_split_ac_family_009_128():
     assert isinstance(added[0], HisenseClimate)
 
 
-def test_climate_009_128_available_when_offline_state_zero_int():
-    climate = _build_climate_device_for_availability(0)
+def test_climate_009_128_available_when_offline_state_one_int():
+    climate = _build_climate_device_for_availability(1)
     assert climate.available is True
 
 
-def test_climate_009_128_available_when_offline_state_zero_str():
-    climate = _build_climate_device_for_availability("0")
+def test_climate_009_128_available_when_offline_state_one_str():
+    climate = _build_climate_device_for_availability("1")
     assert climate.available is True
 
 

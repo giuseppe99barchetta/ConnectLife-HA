@@ -23,7 +23,7 @@ class HisenseOptionsFlowHandler(OptionsFlow):
 
     def __init__(self, config_entry: ConfigEntry) -> None:
         """Initialize options flow."""
-        self.config_entry = config_entry
+        self._config_entry = config_entry
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Manage options."""
@@ -31,7 +31,7 @@ class HisenseOptionsFlowHandler(OptionsFlow):
         description_placeholders = {"message": ""}  # Initialize with empty message
 
         if user_input is not None:
-            coordinator = self.hass.data[DOMAIN][self.config_entry.entry_id]
+            coordinator = self.hass.data[DOMAIN][self._config_entry.entry_id]
 
             if user_input.get("refresh_devices", False):
                 try:
@@ -65,8 +65,8 @@ class HisenseOptionsFlowHandler(OptionsFlow):
                         coordinator.api_client.oauth_session.token = new_token
                         # Force update config entry data
                         self.hass.config_entries.async_update_entry(
-                            self.config_entry,
-                            data={**self.config_entry.data, "token": new_token}
+                            self._config_entry,
+                            data={**self._config_entry.data, "token": new_token}
                         )
                         _LOGGER.info("Token refreshed successfully")
                         description_placeholders["message"] = "Token has been refreshed"
