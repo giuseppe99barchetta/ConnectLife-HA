@@ -423,18 +423,7 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
     @property
     def _device(self):
         """Get current device data from coordinator."""
-        device = self.coordinator.get_device(self._device_id)
-        if device:
-            _LOGGER.debug(
-                "Retrieved climate device %s (%s-%s) offlineState=%s normalized_online=%s status_keys=%s",
-                device.name,
-                device.type_code,
-                device.feature_code,
-                device.offline_state,
-                device.is_online,
-                sorted(device.status.keys()),
-            )
-        return device
+        return self.coordinator.get_device(self._device_id)
 
     @property
     def available(self) -> bool:
@@ -450,23 +439,17 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
             )
             return False
 
-        status_keys = sorted(device.status.keys())
         availability = device.is_online
-        _LOGGER.debug(
-            "Climate availability check device=%s type=%s-%s offlineState=%s normalized_online=%s parser_exists=%s status_keys=%s result=%s",
-            device.name,
-            device.type_code,
-            device.feature_code,
-            device.offline_state,
-            device.is_online,
-            parser_exists,
-            status_keys,
-            availability,
-        )
         if not availability:
             _LOGGER.debug(
-                "Climate unavailable reason device=%s offlineState indicates offline or status missing",
+                "Climate unavailable device=%s type=%s-%s offlineState=%s normalized_online=%s parser_exists=%s status_keys=%s",
                 device.name,
+                device.type_code,
+                device.feature_code,
+                device.offline_state,
+                device.is_online,
+                parser_exists,
+                sorted(device.status.keys()),
             )
         return availability
 

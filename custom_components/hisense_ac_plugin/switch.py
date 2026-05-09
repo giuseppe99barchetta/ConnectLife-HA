@@ -234,9 +234,9 @@ async def async_setup_entry(
                     )
                     entities.append(entity)
 
-                # 新增：处理除湿机风速开关
+                # Add dehumidifier fan-speed switches.
                 if device.type_code == "007":
-                    _LOGGER.info("除湿机添加风速进入: %s", device.feature_code)
+                    _LOGGER.debug("Processing dehumidifier fan-speed switches for feature %s", device.feature_code)
                     parser = coordinator.api_client.parsers.get(device.device_id)
                     if not parser:
                         _LOGGER.warning(
@@ -244,16 +244,15 @@ async def async_setup_entry(
                             device.name,
                         )
                         continue
-                    _LOGGER.info("除湿机添加风速进入: %s: %s", device.feature_code, parser.attributes)
+                    _LOGGER.debug("Dehumidifier parser attributes for %s: %s", device.feature_code, parser.attributes)
                     if "t_fan_speed" in parser.attributes:
-                        _LOGGER.info("除湿机添加风速进入: %s", device.feature_code)
                         fan_attr = parser.attributes['t_fan_speed']
-                        _LOGGER.info("除湿机添加风速进入: %s: %s", device.feature_code,
-                                     parser.attributes.get("t_fan_speed"))
+                        _LOGGER.debug("Dehumidifier fan attribute for %s: %s", device.feature_code,
+                                      parser.attributes.get("t_fan_speed"))
                         static_data = coordinator.api_client.static_data.get(device.device_id)
                         if static_data:
-                            _LOGGER.info("获取到静态数据: %s: %s", device.feature_code, static_data)
-                            # 构建功能标志字典（默认设为"0"）
+                            _LOGGER.debug("Loaded dehumidifier static data for %s: %s", device.feature_code, static_data)
+                            # Build per-speed capability flags, defaulting to "0".
                             feature_flags = {
                                 "自动": static_data.get("Wind_speed_gear_selection_auto", "0"),
                                 "中风": static_data.get("Wind_speed_gear_selection_middle", "0"),
@@ -261,23 +260,20 @@ async def async_setup_entry(
                                 "低风": static_data.get("Wind_speed_gear_selection_low", "0")
                             }
 
-                            # 创建标签到数值的反向映射
+                            # Map labels back to raw device values.
                             reverse_map = {'低风': '0', '高风': '1', '中风': '3', '自动': '2'}
 
-                            # 遍历所有预定义风速标签
+                            # Create switches only for supported labels.
                             for label in ["自动", "中风", "高风", "低风"]:
-                                # 判断是否支持该风速
                                 if feature_flags[label] != "1":
-                                    _LOGGER.debug(f"设备 {device.name} 不支持 {label} 风速功能，跳过创建")
+                                    _LOGGER.debug("Device %s does not support %s fan speed, skipping", device.name, label)
                                     continue
 
-                                # 获取对应的数值
                                 value_str = reverse_map.get(label)
                                 if value_str is None:
-                                    _LOGGER.warning(f"设备 {device.name} 风速标签 {label} 未找到对应数值，跳过创建")
+                                    _LOGGER.warning("Device %s fan-speed label %s has no raw value, skipping", device.name, label)
                                     continue
 
-                                # 创建开关实体
                                 switch_type = f"fan_speed_{label.lower().replace(' ', '_')}"
                                 switch_info = {
                                     "key": fan_attr.key,
@@ -297,7 +293,7 @@ async def async_setup_entry(
                                 entities.append(entity)
                         else:
                             for value_str, label in fan_attr.value_map.items():
-                                _LOGGER.info("除湿机添加风速进入: %s: %s: %s", device.feature_code, value_str, label)
+                                _LOGGER.debug("Creating dehumidifier fan-speed switch feature=%s value=%s label=%s", device.feature_code, value_str, label)
                                 switch_type = f"fan_speed_{label.lower().replace(' ', '_')}"
                                 switch_info = {
                                     "key": fan_attr.key,
@@ -370,16 +366,16 @@ class HisenseSwitch(CoordinatorEntity, SwitchEntity):
         )
         self._attr_icon = switch_info["icon_off"]
         self._attr_entity_registry_enabled_default = True
-        self._expected_value = expected_value  # 新增属性
+        self._expected_value = expected_value
         key_lower = self._switch_key.lower()
         if "zone" in key_lower:
             # Keep zone switches in config section to avoid pushing core modes to bottom.
             self._attr_entity_category = EntityCategory.CONFIG
 
     async def async_added_to_hass(self):
-        """当实体被添加到 Home Assistant 时调用。"""
+        """Run when entity is added to Home Assistant."""
         await super().async_added_to_hass()
-        # 订阅设备状态变化事件
+        # Subscribe to state-change events for debounce updates.
         self.async_on_remove(
             async_track_state_change_event(
                 self.hass,
@@ -390,17 +386,15 @@ class HisenseSwitch(CoordinatorEntity, SwitchEntity):
 
     @callback
     def _handle_device_state_change(self, event: Event) -> None:
-        """处理设备状态变化事件。"""
-        _LOGGER.info("设备状态变化事件: %s", event.data)
+        """Handle device state-change event."""
+        _LOGGER.debug("Switch state-change event: %s", event.data)
         new_state = event.data.get("new_state")
         if new_state:
-            # 动态更新实体名称
-            # self._update_entity_name()
-            # 使用 hass.add_job 安全地调度更新到事件循环线程
+            # Schedule state update on HA loop.
             self.hass.add_job(self._async_schedule_update)
 
     async def _async_schedule_update(self):
-        """异步调度更新实体状态。"""
+        """Schedule entity-state update."""
         self.async_schedule_update_ha_state(True)
 
     # def _update_entity_name(self):
@@ -428,9 +422,9 @@ class HisenseSwitch(CoordinatorEntity, SwitchEntity):
 
     @property
     def name(self) -> str:
-        """动态获取翻译后的名称"""
+        """Return translated entity name."""
         hass = self.hass
-        translation_key = self._switch_type  # 使用开关类型作为键
+        translation_key = self._switch_type
         current_lang = hass.config.language
         translations = hass.data.get(f"{DOMAIN}.translations", {}).get(current_lang, {})
         translated_name = translations.get(translation_key)
@@ -466,14 +460,15 @@ class HisenseSwitch(CoordinatorEntity, SwitchEntity):
 
         if self._switch_type == "rapid_mode":
             available = device.is_online and supported
-            _LOGGER.debug(
-                "Rapid Mode availability device=%s t_super=%s parser=%s supported=%s available=%s",
-                device.name,
-                device.get_status_value(StatusKey.RAPID),
-                parser_exists,
-                supported,
-                available,
-            )
+            if not available:
+                _LOGGER.debug(
+                    "Rapid Mode unavailable device=%s t_super=%s parser=%s supported=%s available=%s",
+                    device.name,
+                    device.get_status_value(StatusKey.RAPID),
+                    parser_exists,
+                    supported,
+                    available,
+                )
             return available
 
         if not device.is_online or not device.is_onOff:
@@ -488,17 +483,16 @@ class HisenseSwitch(CoordinatorEntity, SwitchEntity):
             if current_mode not in ["1"]:
                 return False
         elif self._switch_type == "eco_mode":
-            # 新增feature_code判断逻辑
             if self.device.feature_code == "199":
-                if current_mode in ["4", "0"]:  # 特殊处理feature_code=199时的mode检查
+                if current_mode in ["4", "0"]:
                     return False
             else:
-                if current_mode in ["4"]:  # 其他设备保持原逻辑
+                if current_mode in ["4"]:
                     return False
         elif self.device.type_code == "007" and self._switch_type.startswith("fan_speed_"):
             if current_mode in ["2"]:
                 return False
-            # 新增逻辑：除湿机开启时风速开关不可选中
+            # Hide dehumidifier fan-speed selector while already active.
             if self.is_on:
                 return False
 
@@ -509,53 +503,44 @@ class HisenseSwitch(CoordinatorEntity, SwitchEntity):
         """Return true if the switch is on."""
         current_time = time.time()
 
-        # 检查是否处于防跳变时间窗口内
+        # Use cached state during debounce window.
         if current_time - self._last_action_time < self._debounce_delay:
-            _LOGGER.info("当前处于防跳变时间窗口内，使用缓存状态: %s", self.cached)
+            _LOGGER.debug("Using cached switch state during debounce: %s", self.cached)
             return self.cached
 
-        # 防跳变时间窗口结束，恢复使用云端状态
-        _LOGGER.info("防跳变时间窗口结束，恢复使用云端状态")
-        self.cached = False  # 重置缓存标志
+        # Debounce window finished. Fall back to cloud state.
+        _LOGGER.debug("Debounce window finished, reading cloud state")
+        self.cached = False
         if self.device.type_code == "007" and self._switch_type.startswith("fan_speed_"):
-            # 提取风速标签（如"低风"）
-            fan_speed_label = self._switch_type.split("_")[-1]  # 例如"fan_speed_低风" → "低风"
+            fan_speed_label = self._switch_type.split("_")[-1]
 
-            # 通过value_map将中文标签映射到数值
+            # Map fan-speed label to raw value.
             value_map = {
                 "自动": "2",
                 "中风": "3",
                 "高风": "1",
                 "低风": "0"
             }
-            expected_value = value_map.get(fan_speed_label)  # 获取对应的数值
+            expected_value = value_map.get(fan_speed_label)
 
-            # 获取当前设备风速值
             current_value = self._device.get_status_value("t_fan_speed")
 
-            _LOGGER.info("除湿机风速判断: 当前值=%s, 期望值=%s", current_value, expected_value)
+            _LOGGER.debug("Dehumidifier fan-speed compare current=%s expected=%s", current_value, expected_value)
 
-            # 比较当前值与期望值
             return current_value == expected_value
         else:
-            # 其他开关类型
             value = self._device.get_status_value(self._switch_key)
-            self._last_cloud_value = value  # 保存最后一次云端状态值
-            _LOGGER.info("从云端获取到的状态值: %s", value)
+            self._last_cloud_value = value
             return value == "1"
 
     @property
     def icon(self) -> str:
         """Correctly handle fan speed switch icons"""
         if self._switch_type.startswith("fan_speed_"):
-            # Use the icon from switch_info passed during initialization
             return self._switch_info["icon_on"] if self.is_on else self._switch_info["icon_off"]
         else:
-            # Use predefined icons for other switches
             switch_info = SWITCH_TYPES.get(self._switch_type, {})
             return switch_info.get("icon_on", "mdi:fan") if self.is_on else switch_info.get("icon_off", "mdi:fan-off")
-
-    # 修改 switch.py 中的 HisenseSwitch 类的 async_turn_on 方法：
 
 
     async def async_turn_on(self, **kwargs: Any) -> None:
@@ -563,31 +548,26 @@ class HisenseSwitch(CoordinatorEntity, SwitchEntity):
         current_time = time.time()
         self.cached = True
         self._last_action_time = current_time
-        self._last_cloud_value = None  # 重置云端状态值（因为即将发送新的控制指令）
+        self._last_cloud_value = None
 
         try:
             if self._switch_type.startswith("fan_speed_"):
-                value = self._expected_value  # 使用预设的期望值（如"0","1"等）
+                value = self._expected_value
             else:
-                value = "1"  # 其他开关保持原逻辑
+                value = "1"
 
             await self.coordinator.async_control_device(
                 puid=self._device_id,
                 properties={self._switch_key: value},
             )
 
-            # 强制更新本地缓存状态（不等待Coordinator的更新）
             if self._switch_type.startswith("fan_speed_"):
-                # 风速开关需要根据value设置对应的属性
                 fan_speed_key = self._switch_info["key"]
                 self._device.status[fan_speed_key] = value
             else:
                 self._device.status[self._switch_key] = value
 
-            # 更新上次操作时间
             self._last_action_time = current_time
-
-            # 强制更新状态
             await self.coordinator.async_request_refresh()
         except Exception as err:
             _LOGGER.error("Failed to turn on %s: %s", self._attr_name, err)
@@ -597,7 +577,7 @@ class HisenseSwitch(CoordinatorEntity, SwitchEntity):
         current_time = time.time()
         self.cached = False
         self._last_action_time = current_time
-        self._last_cloud_value = None  # 重置云端状态值（因为即将发送新的控制指令）
+        self._last_cloud_value = None
 
         try:
             await self.coordinator.async_control_device(
@@ -605,31 +585,24 @@ class HisenseSwitch(CoordinatorEntity, SwitchEntity):
                 properties={self._switch_key: "0"},
             )
 
-            # 强制更新本地缓存状态（不等待Coordinator的更新）
             self._device.status[self._switch_key] = "0"
 
-            # 更新上次操作时间
             self._last_action_time = current_time
-
-            # 强制更新状态
             await self.coordinator.async_request_refresh()
         except Exception as err:
             _LOGGER.error("Failed to turn off %s: %s", self._attr_name, err)
 
     async def _async_schedule_update(self):
-        """异步调度更新实体状态，同时处理防跳变逻辑。"""
+        """Schedule entity update with debounce handling."""
         current_time = time.time()
 
-        # 检查是否处于防跳变时间窗口内
+        # Delay refresh while debounce window is active.
         if current_time - self._last_action_time < self._debounce_delay:
-            _LOGGER.info("防跳变时间窗口内，延后更新状态")
-            # 计算剩余时间
+            _LOGGER.debug("Delaying switch update during debounce window")
             remaining_time = self._debounce_delay - (current_time - self._last_action_time)
-            # 延后触发更新
             self.hass.helpers.dispatcher.async_dispatcher_send(
                 f"{DOMAIN}_switch_update_{self.entity_id}",
                 remaining_time
             )
         else:
-            # 正常更新状态
             self.async_schedule_update_ha_state(True)
