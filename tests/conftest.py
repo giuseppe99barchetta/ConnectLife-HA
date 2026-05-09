@@ -84,6 +84,9 @@ def _install_homeassistant_stubs() -> None:
         CELSIUS = "C"
         FAHRENHEIT = "F"
 
+    class UnitOfEnergy:
+        KILO_WATT_HOUR = "kWh"
+
     class Platform:
         CLIMATE = "climate"
         SWITCH = "switch"
@@ -94,6 +97,7 @@ def _install_homeassistant_stubs() -> None:
 
     const.ATTR_TEMPERATURE = "temperature"
     const.UnitOfTemperature = UnitOfTemperature
+    const.UnitOfEnergy = UnitOfEnergy
     const.Platform = Platform
     const.CONF_NAME = "name"
     const.CONF_CLIENT_ID = "client_id"
@@ -332,6 +336,26 @@ def _install_homeassistant_stubs() -> None:
     climate_const.SWING_HORIZONTAL = "horizontal"
     climate_const.SWING_BOTH = "both"
     sys.modules["homeassistant.components.climate.const"] = climate_const
+
+    sensor = types.ModuleType("homeassistant.components.sensor")
+
+    class SensorEntity:
+        pass
+
+    class SensorDeviceClass:
+        TEMPERATURE = "temperature"
+        ENERGY = "energy"
+        HUMIDITY = "humidity"
+        ENUM = "enum"
+
+    class SensorStateClass:
+        MEASUREMENT = "measurement"
+        TOTAL_INCREASING = "total_increasing"
+
+    sensor.SensorEntity = SensorEntity
+    sensor.SensorDeviceClass = SensorDeviceClass
+    sensor.SensorStateClass = SensorStateClass
+    sys.modules["homeassistant.components.sensor"] = sensor
 
 
 def _install_pytz_stub() -> None:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from types import SimpleNamespace
 
 from custom_components.hisense_ac_plugin import async_unload_entry
@@ -20,6 +21,7 @@ from custom_components.hisense_ac_plugin.coordinator import (
 from custom_components.hisense_ac_plugin import humidifier as humidifier_module
 from custom_components.hisense_ac_plugin.models import DeviceInfo
 from custom_components.hisense_ac_plugin import number as number_module
+from custom_components.hisense_ac_plugin import sensor as sensor_module
 from custom_components.hisense_ac_plugin.number import async_setup_entry as setup_number
 from custom_components.hisense_ac_plugin.humidifier import async_setup_entry as setup_humidifier
 from custom_components.hisense_ac_plugin.switch import async_setup_entry as setup_switches
@@ -325,6 +327,12 @@ def test_climate_009_128_available_when_offline_state_missing_but_status_present
     assert climate.available is True
 
 
+def test_sensor_metadata_uses_english_fallback_strings():
+    for sensor_type, sensor_info in sensor_module.SENSOR_TYPES.items():
+        assert not _contains_chinese(sensor_info["name"]), sensor_type
+        assert not _contains_chinese(sensor_info["description"]), sensor_type
+
+
 def test_climate_009_128_target_temp_uses_t_temp_key():
     climate = _build_climate_with_parser(
         status={
@@ -578,3 +586,7 @@ def _assert_no_no_entities_warning(module, setup_fn):
 
     assert added == []
     assert all("No supported" not in message for message in warnings)
+
+
+def _contains_chinese(value: str) -> bool:
+    return bool(re.search(r"[\u4e00-\u9fff]", value))

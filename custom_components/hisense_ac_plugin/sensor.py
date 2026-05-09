@@ -89,7 +89,7 @@ SENSOR_TYPES = {
     },
     "f_zone1water_temp1": {
         "key": StatusKey.ZONE1WATER_TEMP1,  # 使用设备特定的键名
-        "name": "温区1实际值",  # 温区1实际值
+        "name": "Zone 1 Actual Temp",  # 温区1实际值
         "icon": "mdi:thermometer",  # 使用温度相关的图标
         "device_class": SensorDeviceClass.TEMPERATURE,  # 使用正确的设备类
         "state_class": SensorStateClass.MEASUREMENT,  # 使用正确的状态类
@@ -98,7 +98,7 @@ SENSOR_TYPES = {
     },
     "f_zone2water_temp2": {
         "key": StatusKey.ZONE2WATER_TEMP2,  # 使用设备特定的键名
-        "name": "温区2实际值",  # 温区2实际值
+        "name": "Zone 2 Actual Temp",  # 温区2实际值
         "icon": "mdi:thermometer",  # 使用温度相关的图标
         "device_class": SensorDeviceClass.TEMPERATURE,  # 使用正确的设备类
         "state_class": SensorStateClass.MEASUREMENT,  # 使用正确的状态类
@@ -107,554 +107,558 @@ SENSOR_TYPES = {
     },
     "f_e_intemp": {
         "key": StatusKey.F_E_INTEMP,
-        "name": "室内温度传感器故障",
+        "name": "Indoor Temperature Sensor Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "室内温度传感器故障"
+        "description": ""
     },
     "f_e_incoiltemp": {
         "key": StatusKey.F_E_INCOILTEMP,
-        "name": "室内盘管温度传感器故障",
+        "name": "Indoor Coil Temperature Sensor Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "室内盘管温度传感器故障"
+        "description": ""
     },
     "f_e_inhumidity": {
         "key": StatusKey.F_E_INHUMIDITY,
-        "name": "室内湿度传感器故障",
+        "name": "Indoor Humidity Sensor Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "室内湿度传感器故障"
+        "description": ""
     },
     "f_e_infanmotor": {
         "key": StatusKey.F_E_INFANMOTOR,
-        "name": "室内风机电机运转异常故障",
+        "name": "Indoor Fan Motor Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "室内风机电机运转异常故障"
+        "description": ""
     },
     "f_e_arkgrille": {
         "key": StatusKey.F_E_ARKGRILLE,
-        "name": "柜机格栅保护告警",
+        "name": "Cabinet Grill Protection Alert",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "柜机格栅保护告警"
+        "description": ""
     },
     "f_e_invzero": {
         "key": StatusKey.F_E_INVZERO,
-        "name": "室内电压过零检测故障",
+        "name": "Indoor Zero Voltage Detection Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "室内电压过零检测故障"
+        "description": ""
     },
     "f_e_incom": {
         "key": StatusKey.F_E_INCOM,
-        "name": "室内外通信故障",
+        "name": "Indoor-Outdoor Communication Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "室内外通信故障"
+        "description": ""
     },
     "f_e_indisplay": {
         "key": StatusKey.F_E_INDISPLAY,
-        "name": "室内控制板与显示板通信故障",
+        "name": "Indoor Display Board Communication Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "室内控制板与显示板通信故障"
+        "description": ""
     },
     "f_e_inkeys": {
         "key": StatusKey.F_E_INKEYS,
-        "name": "室内控制板与按键板通信故障",
+        "name": "Indoor Key Panel Communication Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "室内控制板与按键板通信故障"
+        "description": ""
     },
     "f_e_inwifi": {
         "key": StatusKey.F_E_INWIFI,
-        "name": "WIFI控制板与室内控制板通信故障",
+        "name": "WiFi Control Board Communication Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "WIFI控制板与室内控制板通信故障"
+        "description": ""
     },
     "f_e_inele": {
         "key": StatusKey.F_E_INELE,
-        "name": "室内控制板与室内电量板通信故障",
+        "name": "Indoor Power Board Communication Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "室内控制板与室内电量板通信故障"
+        "description": ""
     },
     "f_e_ineeprom": {
         "key": StatusKey.F_E_INEEPROM,
-        "name": "室内控制板EEPROM出错",
+        "name": "Indoor EEPROM Error",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "室内控制板EEPROM出错"
+        "description": ""
     },
     "f_e_outeeprom": {
         "key": StatusKey.F_E_OUTEEPROM,
-        "name": "室外EEPROM出错",
+        "name": "Outdoor EEPROM Error",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "室外EEPROM出错"
+        "description": ""
     },
     "f_e_outcoiltemp": {
         "key": StatusKey.F_E_OUTCOILTEMP,
-        "name": "室外盘管温度传感器故障",
+        "name": "Outdoor Coil Temperature Sensor Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "室外盘管温度传感器故障"
+        "description": ""
     },
     "f_e_outgastemp": {
         "key": StatusKey.F_E_OUTGASTEMP,
-        "name": "排气温度传感器故障",
+        "name": "Exhaust Temperature Sensor Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "排气温度传感器故障"
+        "description": ""
     },
     "f_e_outtemp": {
         "key": StatusKey.F_E_OUTTEMP,
-        "name": "室外环境温度传感器故障",
+        "name": "Outdoor Ambient Temperature Sensor Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "室外环境温度传感器故障"
+        "description": ""
     },
     "f_e_push": {
         "key": StatusKey.F_E_PUSH,
-        "name": "推送故障",
+        "name": "Push Notification Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "推送故障"
+        "description": ""
     },
     "f_e_waterfull": {
         "key": StatusKey.F_E_WATERFULL,
-        "name": "水满报警",
+        "name": "Tank Full Alert",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "水满报警"
+        "description": ""
     },
     "f_e_upmachine": {
         "key": StatusKey.F_E_UPMACHINE,
-        "name": "室内（上部）直流风机电机运转异常故障",
+        "name": "Upper Indoor Fan Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "室内（上部）直流风机电机运转异常故障"
+        "description": ""
     },
     "f_e_dwmachine": {
         "key": StatusKey.F_E_DWMACHINE,
-        "name": "室外（下部）直流风机电机运转异常故障",
+        "name": "Lower Outdoor Fan Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "室外（下部）直流风机电机运转异常故障"
+        "description": ""
     },
     "f_e_filterclean": {
         "key": StatusKey.F_E_FILTERCLEAN,
-        "name": "过滤网清洁告警",
+        "name": "Filter Clean Alert",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "过滤网清洁告警"
+        "description": ""
     },
     "f_e_wetsensor": {
         "key": StatusKey.F_E_WETSENSOR,
-        "name": "湿敏传感器故障",
+        "name": "Moisture Sensor Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "湿敏传感器故障"
+        "description": ""
     },
     "f_e_tubetemp": {
         "key": StatusKey.F_E_TUBETEMP,
-        "name": "管温传感器故障",
+        "name": "Pipe Temperature Sensor Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "管温传感器故障"
+        "description": ""
     },
     "f_e_temp": {
         "key": StatusKey.F_E_TEMP,
-        "name": "室温传感器故障",
+        "name": "Room Temperature Sensor Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "室温传感器故障"
+        "description": ""
     },
     "f_e_pump": {
         "key": StatusKey.F_E_PUMP,
-        "name": "水泵故障",
+        "name": "Pump Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "水泵故障"
+        "description": ""
     },
     "f_e_exhaust_hightemp": {
         "key": StatusKey.F_E_EXHAUST_HIGHTEMP,
-        "name": "排气温度过高",
+        "name": "Exhaust Overheating",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "排气温度过高"
+        "description": ""
     },
     "f_e_high_pressure": {
         "key": StatusKey.F_E_HIGH_PRESSURE,
-        "name": "高压故障",
+        "name": "High Pressure Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "高压故障"
+        "description": ""
     },
     "f_e_low_pressure": {
         "key": StatusKey.F_E_LOW_PRESSURE,
-        "name": "低压故障",
+        "name": "Low Pressure Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "低压故障"
+        "description": ""
     },
     "f_e_wire_drive": {
         "key": StatusKey.F_E_WIRE_DRIVE,
-        "name": "通信故障",
+        "name": "Communication Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "通信故障"
+        "description": ""
     },
     "f_e_coiltemp": {
         "key": StatusKey.F_E_COILTEMP,
-        "name": "盘管温度传感器故障",
+        "name": "Coil Temperature Sensor Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "盘管温度传感器故障"
+        "description": ""
     },
     "f_e_env_temp": {
         "key": StatusKey.F_E_ENV_TEMP,
-        "name": "环境温度传感器故障",
+        "name": "Environmental Temperature Sensor Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "环境温度传感器故障"
+        "description": ""
     },
     "f_e_exhaust": {
         "key": StatusKey.F_E_EXHAUST,
-        "name": "排气温度传感器故障",
+        "name": "Exhaust Temperature Sensor Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "排气温度传感器故障"
+        "description": ""
     },
     "f_e_inwater": {
         "key": StatusKey.F_E_INWATER,
-        "name": "进水温度传感器故障",
+        "name": "Inlet Water Temperature Sensor Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "进水温度传感器故障"
+        "description": ""
     },
     "f_e_water_tank": {
         "key": StatusKey.F_E_WATER_TANK,
-        "name": "水箱温度传感器故障",
+        "name": "Tank Temperature Sensor Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "水箱温度传感器故障"
+        "description": ""
     },
     "f_e_return_air": {
         "key": StatusKey.F_E_RETURN_AIR,
-        "name": "回气温度传感器故障",
+        "name": "Return Air Temperature Sensor Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "回气温度传感器故障"
+        "description": ""
     },
     "f_e_outwater": {
         "key": StatusKey.F_E_OUTWATER,
-        "name": "出水温度传感器故障",
+        "name": "Outlet Water Temperature Sensor Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "出水温度传感器故障"
+        "description": ""
     },
     "f_e_solar_temperature": {
         "key": StatusKey.F_E_SOLAR_TEMPERATURE,
-        "name": "太阳能温度传感器故障",
+        "name": "Solar Temperature Sensor Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "太阳能温度传感器故障"
+        "description": ""
     },
     "f_e_compressor_overload": {
         "key": StatusKey.F_E_COMPRESSOR_OVERLOAD,
-        "name": "压缩机过载",
+        "name": "Compressor Overload",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "压缩机过载"
+        "description": ""
     },
     "f_e_excessive_current": {
         "key": StatusKey.F_E_EXCESSIVE_CURRENT,
-        "name": "电流过大",
+        "name": "Overcurrent",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "电流过大"
+        "description": ""
     },
     "f_e_fan_fault": {
         "key": StatusKey.F_E_FAN_FAULT,
-        "name": "风机故障",
+        "name": "Fan Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "风机故障"
+        "description": ""
     },
     "f_e_displaycom_fault": {
         "key": StatusKey.F_E_DISPLAYCOM_FAULT,
-        "name": "显示板通信故障",
+        "name": "Display Board Communication Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "显示板通信故障"
+        "description": ""
     },
     "f_e_upwatertank_fault": {
         "key": StatusKey.F_E_UPWATERTANK_FAULT,
-        "name": "水箱上部温度传感器故障",
+        "name": "Upper Tank Temperature Sensor Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "水箱上部温度传感器故障"
+        "description": ""
     },
     "f_e_downwatertank_fault": {
         "key": StatusKey.F_E_DOWNWATERTANK_FAULT,
-        "name": "水箱下部温度传感器故障",
+        "name": "Lower Tank Temperature Sensor Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "水箱下部温度传感器故障"
+        "description": ""
     },
     "f_e_suctiontemp_fault": {
         "key": StatusKey.F_E_SUCTIONTEMP_FAULT,
-        "name": "吸气温度传感器故障",
+        "name": "Suction Temperature Sensor Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "吸气温度传感器故障"
+        "description": ""
     },
     "f_e_e2data_fault": {
         "key": StatusKey.F_E_E2DATA_FAULT,
-        "name": "EEPROM数据故障",
+        "name": "EEPROM Data Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "EEPROM数据故障"
+        "description": ""
     },
     "f_e_drivecom_fault": {
         "key": StatusKey.F_E_DRIVECOM_FAULT,
-        "name": "驱动板通信故障",
+        "name": "Drive Board Communication Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "驱动板通信故障"
+        "description": ""
     },
     "f_e_drive_fault": {
         "key": StatusKey.F_E_DRIVE_FAULT,
-        "name": "驱动板故障",
+        "name": "Drive Board Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "驱动板故障"
+        "description": ""
     },
     "f_e_returnwatertemp_fault": {
         "key": StatusKey.F_E_RETURNWATERTEMP_FAULT,
-        "name": "回水温度传感器故障",
+        "name": "Return Water Temperature Sensor Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "回水温度传感器故障"
+        "description": ""
     },
     "f_e_clockchip_fault": {
         "key": StatusKey.F_E_CLOCKCHIP_FAULT,
-        "name": "时钟芯片故障",
+        "name": "Clock Chip Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "时钟芯片故障"
+        "description": ""
     },
     "f_e_eanode_fault": {
         "key": StatusKey.F_E_EANODE_FAULT,
-        "name": "电子阳极故障",
+        "name": "Anode Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "电子阳极故障"
+        "description": ""
     },
     "f_e_powermodule_fault": {
         "key": StatusKey.F_E_POWERMODULE_FAULT,
-        "name": "电量模块故障",
+        "name": "Power Module Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "电量模块故障"
+        "description": ""
     },
     "f_e_fan_fault_tip": {
         "key": StatusKey.F_E_FAN_FAULT_TIP,
-        "name": "外风机故障",
+        "name": "Outdoor Fan Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "外风机故障"
+        "description": ""
     },
     "f_e_pressuresensor_fault_tip": {
         "key": StatusKey.F_E_PRESSURESENSOR_FAULT_TIP,
-        "name": "压力传感器故障",
+        "name": "Pressure Sensor Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "压力传感器故障"
+        "description": ""
     },
     "f_e_tempfault_solarwater_tip": {
         "key": StatusKey.F_E_TEMPFAULT_SOLARWATER_TIP,
-        "name": "太阳能水温感温故障",
+        "name": "Solar Water Sensor Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "太阳能水温感温故障"
+        "description": ""
     },
     "f_e_tempfault_mixedwater_tip": {
         "key": StatusKey.F_E_TEMPFAULT_MIXEDWATER_TIP,
-        "name": "混水感温故障",
+        "name": "Mixed Water Sensor Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "混水感温故障"
+        "description": ""
     },
     "f_e_tempfault_balance_watertank_tip": {
         "key": StatusKey.F_E_TEMPFAULT_BALANCE_WATERTANK_TIP,
-        "name": "平衡水箱感温故障",
+        "name": "Balance Tank Sensor Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "平衡水箱感温故障"
+        "description": ""
     },
     "f_e_tempfault_eheating_outlet_tip": {
         "key": StatusKey.F_E_TEMPFAULT_EHEATING_OUTLET_TIP,
-        "name": "内置电加热出水感温故障",
+        "name": "Electric Heater Outlet Sensor Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "内置电加热出水感温故障"
+        "description": ""
     },
     "f_e_tempfault_refrigerant_outlet_tip": {
         "key": StatusKey.F_E_TEMPFAULT_REFRIGERANT_OUTLET_TIP,
-        "name": "冷媒出口温感故障",
+        "name": "Refrigerant Outlet Sensor Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "冷媒出口温感故障"
+        "description": ""
     },
     "f_e_tempfault_refrigerant_inlet_tip": {
         "key": StatusKey.F_E_TEMPFAULT_REFRIGERANT_INLET_TIP,
-        "name": "冷媒进口温感故障",
+        "name": "Refrigerant Inlet Sensor Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "冷媒进口温感故障"
+        "description": ""
     },
     "f_e_inwaterpump_tip": {
         "key": StatusKey.F_E_INWATERPUMP_TIP,
-        "name": "内置水泵故障",
+        "name": "Pump Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "内置水泵故障"
+        "description": ""
     },
     "f_e_outeeprom_tip": {
         "key": StatusKey.F_E_OUTEEPROM_TIP,
-        "name": "外机EEPROM故障",
+        "name": "Outdoor EEPROM Fault",
         "icon": "mdi:alert",
         "device_class": SensorDeviceClass.ENUM,
         "state_class": None,
         "unit": None,
-        "description": "外机EEPROM故障"
+        "description": ""
     }
 }
+
+for sensor_info in SENSOR_TYPES.values():
+    if sensor_info["device_class"] == SensorDeviceClass.ENUM:
+        sensor_info["description"] = sensor_info["name"]
 
 async def async_setup_entry(
     hass: HomeAssistant,
