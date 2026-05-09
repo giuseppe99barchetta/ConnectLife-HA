@@ -161,6 +161,81 @@ def test_switch_setup_skips_missing_parser_without_crashing():
     assert added == []
 
 
+def test_rapid_mode_switch_for_009_128_is_created_and_available():
+    hass = DummyHass()
+    entry = SimpleNamespace(entry_id="entry-1")
+    device = build_device(
+        type_code="009",
+        feature_code="128",
+        status={
+            StatusKey.POWER: "1",
+            StatusKey.MODE: "0",
+            StatusKey.RAPID: "0",
+            StatusKey.TARGET_TEMP: "25",
+            StatusKey.FAN_SPEED: "9",
+        },
+    )
+    parser = SimpleNamespace(
+        attributes={
+            StatusKey.RAPID: SimpleNamespace(),
+            StatusKey.MODE: SimpleNamespace(),
+        }
+    )
+    coordinator = SimpleNamespace(
+        hass=hass,
+        data={device.device_id: device},
+        api_client=SimpleNamespace(parsers={device.device_id: parser}, static_data={}),
+        get_device=lambda _device_id: device,
+    )
+    hass.data[DOMAIN] = {entry.entry_id: coordinator}
+    added = []
+
+    async def run_test():
+        await setup_switches(hass, entry, added.extend)
+
+    asyncio.run(run_test())
+
+    rapid_entities = [entity for entity in added if getattr(entity, "_switch_type", None) == "rapid_mode"]
+    assert len(rapid_entities) == 1
+    assert rapid_entities[0].available is True
+
+
+def test_rapid_mode_switch_for_009_128_is_skipped_without_t_super():
+    hass = DummyHass()
+    entry = SimpleNamespace(entry_id="entry-1")
+    device = build_device(
+        type_code="009",
+        feature_code="128",
+        status={
+            StatusKey.POWER: "1",
+            StatusKey.MODE: "0",
+            StatusKey.TARGET_TEMP: "25",
+            StatusKey.FAN_SPEED: "9",
+        },
+    )
+    parser = SimpleNamespace(
+        attributes={
+            StatusKey.MODE: SimpleNamespace(),
+        }
+    )
+    coordinator = SimpleNamespace(
+        hass=hass,
+        data={device.device_id: device},
+        api_client=SimpleNamespace(parsers={device.device_id: parser}, static_data={}),
+        get_device=lambda _device_id: device,
+    )
+    hass.data[DOMAIN] = {entry.entry_id: coordinator}
+    added = []
+
+    async def run_test():
+        await setup_switches(hass, entry, added.extend)
+
+    asyncio.run(run_test())
+
+    rapid_entities = [entity for entity in added if getattr(entity, "_switch_type", None) == "rapid_mode"]
+    assert rapid_entities == []
+
+
 def test_async_unload_entry_calls_coordinator_cleanup():
     hass = DummyHass()
     cleanup_calls = []

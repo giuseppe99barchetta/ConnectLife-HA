@@ -58,6 +58,35 @@ SWITCH_TYPES = {
 }
 
 
+def _has_switch_support(
+    device: HisenseDeviceInfo,
+    parser,
+    switch_type: str,
+    switch_info: dict[str, str],
+    static_data: dict[str, Any] | None,
+) -> bool:
+    """Return whether a switch should be created for this device."""
+    key = switch_info["key"]
+    key_in_status = key in (device.status or {})
+    key_in_parser = bool(parser and getattr(parser, "attributes", None) and key in parser.attributes)
+
+    if switch_type == "rapid_mode":
+        return key_in_status or key_in_parser
+
+    if not (key_in_status or key_in_parser):
+        return False
+
+    if static_data:
+        if switch_type == "quiet_mode":
+            return static_data.get("Mute_mode_function") == "1"
+        if switch_type == "8heat_mode":
+            return True
+    else:
+        return key_in_status
+
+    return True
+
+
 def _build_zone_switch_definitions(device: HisenseDeviceInfo, parser) -> list[tuple[str, dict[str, str]]]:
     """Build dynamic zone switch definitions from parser attributes/status keys."""
     zone_definitions: list[tuple[str, dict[str, str]]] = []
@@ -175,26 +204,15 @@ async def async_setup_entry(
 
                 # Add switches for each supported feature
                 for switch_type, switch_info in SWITCH_TYPES.items():
-                    # Check if the device supports this attribute
-                    if device.has_attribute(switch_info["key"], parser):
+                    static_data = coordinator.api_client.static_data.get(device.device_id)
+                    if _has_switch_support(device, parser, switch_type, switch_info, static_data):
                         _LOGGER.info(
                             "Adding %s switch for device: %s",
                             switch_info["name"],
                             device.name
                         )
-                        static_data = coordinator.api_client.static_data.get(device.device_id)
-                        if static_data:
-                            rapid_mode = static_data.get("Super_function")
-                            quiet_mode = static_data.get("Mute_mode_function")
-                            if switch_type == "rapid_mode" and rapid_mode != "1":
-                                continue
-                            if switch_type == "quiet_mode" and quiet_mode != "1":
-                                continue
-                        else:
-                            if not device.status.get(switch_info["key"]):
-                                continue
-                        _LOGGER.info("当前设备: %s: %s",device.feature_code,device.status)
-                        #跟cl对齐，去掉200的静音
+                        _LOGGER.debug("Switch candidate feature=%s status=%s", device.feature_code, device.status)
+                        # Align with ConnectLife: hide quiet mode for feature 200.
                         if switch_type == "quiet_mode":
                             if device.feature_code == 200 or device.feature_code == "200":
                                 continue
@@ -436,16 +454,34 @@ class HisenseSwitch(CoordinatorEntity, SwitchEntity):
     @property
     def available(self) -> bool:
         """Return if entity is available."""
-        _LOGGER.info("设备 %s 是否可用: %s", self.feature_code, self._device.is_onOff)  # 调用方法并获取返回值
-        if not self._device or not self._device.is_online or not self._device.is_onOff:
+        device = self._device
+        if not device:
+            return False
+
+        parser = self.coordinator.api_client.parsers.get(device.device_id)
+        parser_exists = parser is not None
+        key_in_status = self._switch_key in (device.status or {})
+        key_in_parser = bool(parser_exists and getattr(parser, "attributes", None) and self._switch_key in parser.attributes)
+        supported = key_in_status or key_in_parser
+
+        if self._switch_type == "rapid_mode":
+            available = device.is_online and supported
+            _LOGGER.debug(
+                "Rapid Mode availability device=%s t_super=%s parser=%s supported=%s available=%s",
+                device.name,
+                device.get_status_value(StatusKey.RAPID),
+                parser_exists,
+                supported,
+                available,
+            )
+            return available
+
+        if not device.is_online or not device.is_onOff:
             return False
 
         # Check if the switch should be hidden based on the current mode
-        current_mode = self._device.get_status_value(StatusKey.MODE)
-        if self._switch_type == "rapid_mode":
-            if current_mode in ["0", "4", "3"]:  # Assuming "0" is AUTO, "1" is FAN, and "3" is DEHUMIDIFY
-                return False
-        elif self._switch_type == "quiet_mode":
+        current_mode = device.get_status_value(StatusKey.MODE)
+        if self._switch_type == "quiet_mode":
             if current_mode in ["4", "3"]:  # Assuming "0" is AUTO and "1" is FAN
                 return False
         elif self._switch_type == "8heat_mode":
