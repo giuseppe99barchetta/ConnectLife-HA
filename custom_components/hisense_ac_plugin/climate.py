@@ -332,6 +332,7 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
             left_and_right = self.static_data.get("Left_and_right_damper_control")
             upper_and_lower = self.static_data.get("Upper_and_lower_damper_control")
         swing_modes = [SWING_OFF]
+        vertical_swing_key = StatusKey.SWING
 
         # Check for vertical swing support (t_up_down)
         vertical_swing_attr = self._parser.attributes.get(StatusKey.SWING)
@@ -358,6 +359,24 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
                     swing_modes.append(SWING_HORIZONTAL)
 
         self._attr_swing_modes = swing_modes
+        if self._current_type_code == "009" and self._current_feature_code == "128":
+            status_keys = sorted(
+                key for key in (self._device.status or {})
+                if any(token in str(key).lower() for token in ("left", "right", "lr", "swing", "up_down"))
+            )
+            parser_keys = sorted(
+                key for key in self._parser.attributes
+                if any(token in str(key).lower() for token in ("left", "right", "lr", "swing", "up_down"))
+            )
+            _LOGGER.debug(
+                "009-128 swing discovery device=%s status_keys=%s parser_keys=%s vertical_key=%s horizontal_key=%s swing_modes=%s",
+                self._attr_name,
+                status_keys,
+                parser_keys,
+                vertical_swing_key,
+                horizontal_swing_key,
+                swing_modes,
+            )
         _LOGGER.debug("Available swing modes: %s", swing_modes)
 
     @staticmethod
