@@ -831,6 +831,8 @@ class HisenseSensor(CoordinatorEntity, SensorEntity):
         """Return if entity is available."""
         if not super().available:  # 继承父类的可用性检查（设备在线）
             return False
+        if self._sensor_type == "power_consumption":
+            return True
         current_mode = self._device.get_status_value(StatusKey.MODE)  # 使用正确键名
         # 判断自动模式
         if current_mode in ["3"]:

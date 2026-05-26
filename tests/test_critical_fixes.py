@@ -549,6 +549,25 @@ def test_filtered_parser_keeps_horizontal_swing_alias_when_property_list_exposes
     assert "t_lr" in parser.attributes
 
 
+def test_daily_power_consumption_sums_hourly_payload_values():
+    value = HisenseApiClient._calculate_daily_power_consumption(
+        {
+            "0": "0",
+            "08": "0,25",
+            "9": 0.5,
+            "10": {"value": "1.25"},
+            "11": None,
+        }
+    )
+
+    assert value == 2.0
+
+
+def test_daily_power_consumption_returns_none_when_payload_has_no_values():
+    assert HisenseApiClient._calculate_daily_power_consumption({}) is None
+    assert HisenseApiClient._calculate_daily_power_consumption({"0": None, "1": ""}) is None
+
+
 def test_no_warning_for_ac_only_empty_number_platform():
     _assert_no_no_entities_warning(number_module, setup_number)
 

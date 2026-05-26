@@ -229,22 +229,22 @@ Use at your own risk.
 
 **Made with ❤️ for the Home Assistant community**
 
-[releases-shield]: https://img.shields.io/github/release/Connectlife-LLC/HomeAssistantPlugin.svg?style=for-the-badge
+[releases-shield]: https://img.shields.io/github/release/giuseppe99barchetta/HomeAssistantPlugin.svg?style=for-the-badge
 
-[releases]: https://github.com/Connectlife-LLC/HomeAssistantPlugin/releases
+[releases]: https://github.com/giuseppe99barchetta/HomeAssistantPlugin/releases
 
-[commits-shield]: https://img.shields.io/github/commit-activity/y/Connectlife-LLC/HomeAssistantPlugin.svg?style=for-the-badge
+[commits-shield]: https://img.shields.io/github/commit-activity/y/giuseppe99barchetta/HomeAssistantPlugin.svg?style=for-the-badge
 
-[commits]: https://github.com/Connectlife-LLC/HomeAssistantPlugin/commits/main
+[commits]: https://github.com/giuseppe99barchetta/HomeAssistantPlugin/commits/main
 
-[license-shield]: https://img.shields.io/github/license/Connectlife-LLC/HomeAssistantPlugin.svg?style=for-the-badge
+[license-shield]: https://img.shields.io/github/license/giuseppe99barchetta/HomeAssistantPlugin.svg?style=for-the-badge
 
 [hacsbadge]: https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge
 
 [hacs]: https://github.com/hacs/integration
 
-[issues]: https://github.com/Connectlife-LLC/HomeAssistantPlugin/issues
+[issues]: https://github.com/giuseppe99barchetta/HomeAssistantPlugin/issues
 
-[discussions]: https://github.com/Connectlife-LLC/HomeAssistantPlugin/discussions
+[discussions]: https://github.com/giuseppe99barchetta/HomeAssistantPlugin/discussions
 
-[wiki]: https://github.com/Connectlife-LLC/HomeAssistantPlugin/wiki
+[wiki]: https://github.com/giuseppe99barchetta/HomeAssistantPlugin/wiki

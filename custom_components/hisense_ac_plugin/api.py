@@ -9,7 +9,7 @@ import hashlib
 import base64
 from typing import Any, Dict, List, Callable
 import zoneinfo
-from datetime import datetime, timedelta
+from datetime import datetime
 import pytz
 import re
 import hmac
@@ -500,13 +500,51 @@ class HisenseApiClient:
             "sourceId": self._get_source_id(),
             "platformId": 5,  # Adding platformId as required by the API
         }
-        
+
         # Add access token if available
         access_token = await self.oauth_session.async_get_access_token()
         if access_token:
             params["accessToken"] = access_token
             
         return params
+
+    @staticmethod
+    def _coerce_power_consumption_value(value: Any) -> float | None:
+        """Convert cloud power-consumption bucket values to floats."""
+        if value is None or value == "":
+            return None
+
+        if isinstance(value, dict):
+            for key in ("value", "powerConsumption", "consumption", "energy"):
+                converted = HisenseApiClient._coerce_power_consumption_value(value.get(key))
+                if converted is not None:
+                    return converted
+            return None
+
+        try:
+            return float(str(value).replace(",", "."))
+        except (TypeError, ValueError):
+            _LOGGER.debug("Ignoring non numeric power-consumption value: %s", value)
+            return None
+
+    @classmethod
+    def _calculate_daily_power_consumption(cls, power: Any) -> float | None:
+        """Return daily kWh total from hourly power-consumption API payload."""
+        if not isinstance(power, dict):
+            return None
+
+        values = [
+            parsed
+            for parsed in (
+                cls._coerce_power_consumption_value(value)
+                for value in power.values()
+            )
+            if parsed is not None
+        ]
+        if not values:
+            return None
+
+        return sum(values)
 
     async def async_get_devices(self) -> dict[str, DeviceInfo]:
         """Get list of devices with their current status."""
@@ -641,12 +679,9 @@ class HisenseApiClient:
                             current_date = datetime.now().date().isoformat()
                             power_response = await self.async_get_hour_power(current_date, device.puid)
                             power = power_response.get("status")
-                            current_time = datetime.now()
-                            previous_hour = (current_time - timedelta(hours=1)).hour
-                            previous_hour_str = str(previous_hour)
-                            value = power.get(previous_hour_str)
-                            _LOGGER.debug("Power response %s: %s current_hour=%s previous_hour=%s previous_hour_power=%s", deviceFeatureCode,
-                                          power_response, current_time.hour,previous_hour_str, value)
+                            value = self._calculate_daily_power_consumption(power)
+                            _LOGGER.debug("Power response %s: %s daily_power_consumption=%s", deviceFeatureCode,
+                                          power_response, value)
                             _LOGGER.debug("Static data for device.status %s: %s", deviceFeatureCode,
                                           device.status)
                             device.status["f_power_consumption"] = value

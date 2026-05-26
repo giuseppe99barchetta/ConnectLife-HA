@@ -206,7 +206,7 @@ logger:
 ### 开发环境设置
 
 ```bash
-git clone https://github.com/Connectlife-LLC/HomeAssistantPlugin.git
+git clone https://github.com/giuseppe99barchetta/HomeAssistantPlugin.git
 cd HomeAssistantPlugin
 # 设置您的开发环境
 ```
@@ -229,13 +229,13 @@ cd HomeAssistantPlugin
 
 **❤️ 为 Home Assistant 社区制作**
 
-[releases-shield]: https://img.shields.io/github/release/Connectlife-LLC/HomeAssistantPlugin.svg?style=for-the-badge
-[releases]: https://github.com/Connectlife-LLC/HomeAssistantPlugin/releases
-[commits-shield]: https://img.shields.io/github/commit-activity/y/Connectlife-LLC/HomeAssistantPlugin.svg?style=for-the-badge
-[commits]: https://github.com/Connectlife-LLC/HomeAssistantPlugin/commits/main
-[license-shield]: https://img.shields.io/github/license/Connectlife-LLC/HomeAssistantPlugin.svg?style=for-the-badge
+[releases-shield]: https://img.shields.io/github/release/giuseppe99barchetta/HomeAssistantPlugin.svg?style=for-the-badge
+[releases]: https://github.com/giuseppe99barchetta/HomeAssistantPlugin/releases
+[commits-shield]: https://img.shields.io/github/commit-activity/y/giuseppe99barchetta/HomeAssistantPlugin.svg?style=for-the-badge
+[commits]: https://github.com/giuseppe99barchetta/HomeAssistantPlugin/commits/main
+[license-shield]: https://img.shields.io/github/license/giuseppe99barchetta/HomeAssistantPlugin.svg?style=for-the-badge
 [hacsbadge]: https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge
 [hacs]: https://github.com/hacs/integration
-[issues]: https://github.com/Connectlife-LLC/HomeAssistantPlugin/issues
-[discussions]: https://github.com/Connectlife-LLC/HomeAssistantPlugin/discussions
-[wiki]: https://github.com/Connectlife-LLC/HomeAssistantPlugin/wiki
+[issues]: https://github.com/giuseppe99barchetta/HomeAssistantPlugin/issues
+[discussions]: https://github.com/giuseppe99barchetta/HomeAssistantPlugin/discussions
+[wiki]: https://github.com/giuseppe99barchetta/HomeAssistantPlugin/wiki
