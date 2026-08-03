@@ -412,6 +412,7 @@ def _install_homeassistant_stubs() -> None:
         CURRENT = "current"
         HUMIDITY = "humidity"
         ENUM = "enum"
+        TIMESTAMP = "timestamp"
 
     class SensorStateClass:
         MEASUREMENT = "measurement"

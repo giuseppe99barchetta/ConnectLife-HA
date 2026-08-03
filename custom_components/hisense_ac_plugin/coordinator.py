@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -34,6 +34,7 @@ class HisenseACPluginDataUpdateCoordinator(DataUpdateCoordinator):
         self.api_client = api_client
         self.config_entry = config_entry
         self._devices: dict[str, DeviceInfo] = {}
+        self._puid_to_device_id: dict[str, str] = {}
         self._websocket: HisenseWebSocket | None = None
         self._websocket_connected = False
 
@@ -47,9 +48,6 @@ class HisenseACPluginDataUpdateCoordinator(DataUpdateCoordinator):
                 return False
                 
             _LOGGER.debug("Initial device list: %s", devices)
-            self._devices = devices
-            self.data = devices  # Set initial data
-            
             # Set up WebSocket connection
             self._websocket = HisenseWebSocket(
                 self.hass,
@@ -77,8 +75,7 @@ class HisenseACPluginDataUpdateCoordinator(DataUpdateCoordinator):
                 raise UpdateFailed("No devices found")
             
             # Update coordinator data
-            self._devices = devices
-            self.data = devices
+            self._set_devices(devices)
             _LOGGER.info("Successfully updated %d devices", len(devices))
             
             return self._devices
@@ -99,8 +96,7 @@ class HisenseACPluginDataUpdateCoordinator(DataUpdateCoordinator):
             # Get all device statuses in one call since it's more efficient
             devices = await self.api_client.async_get_devices()
             if devices and device_id in devices:
-                self._devices = devices
-                self.data = devices
+                self._set_devices(devices)
                 self.async_set_updated_data(self._devices)
                 _LOGGER.info("Manually refreshed device %s", device_id)
             else:
@@ -115,8 +111,7 @@ class HisenseACPluginDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.debug("Manually refreshing all devices")
             devices = await self.api_client.async_get_devices()
             if devices:
-                self._devices = devices
-                self.data = devices
+                self._set_devices(devices)
                 self.async_set_updated_data(self._devices)
                 _LOGGER.info("Successfully refreshed %d devices", len(devices))
             else:
@@ -152,21 +147,17 @@ class HisenseACPluginDataUpdateCoordinator(DataUpdateCoordinator):
 
     def get_device(self, device_id: str) -> DeviceInfo | None:
         """Get device by ID or puid."""
-        # First try direct lookup by device_id.
-        device = self._devices.get(device_id)
-        if device:
-            _LOGGER.debug("Found device by device_id: %s", device_id)
-            return device
+        return self._devices.get(device_id) or self._devices.get(
+            self._puid_to_device_id.get(device_id, "")
+        )
 
-        # Fall back to lookup by puid.
-        _LOGGER.debug("Device not found by device_id, trying puid")
-        for dev in self._devices.values():
-            if getattr(dev, 'puid', None) == device_id:
-                _LOGGER.debug("Found device by puid: %s", device_id)
-                return dev
-        
-        _LOGGER.warning("Device not found with ID or puid: %s", device_id)        
-        return None
+    def _set_devices(self, devices: dict[str, DeviceInfo]) -> None:
+        """Replace the device cache and its PUID index."""
+        self._devices = devices
+        self._puid_to_device_id = {
+            device.puid: device_id for device_id, device in devices.items() if device.puid
+        }
+        self.data = devices
 
     async def async_unload(self) -> None:
         """Unload the coordinator."""
@@ -211,15 +202,8 @@ class HisenseACPluginDataUpdateCoordinator(DataUpdateCoordinator):
                 _LOGGER.debug("Processing message for device: %s", device_id)
                 _LOGGER.debug("Available devices: %s", [f"{d.device_id} (puid: {d.puid}, type: {d.type_code}-{d.feature_code})" for d in self._devices.values()])
                 
-                # Find device by puid instead of direct dictionary lookup
-                device = None
-                device_key = None
-                for key, dev in self._devices.items():
-                    if dev.puid == device_id:
-                        device = dev
-                        device_key = key
-                        _LOGGER.debug("Found device with puid %s, device_id: %s", device_id, key)
-                        break
+                device_key = self._puid_to_device_id.get(device_id)
+                device = self._devices.get(device_key) if device_key else None
                 
                 if device and device_key:
                     _LOGGER.debug("Found device %s in devices list", device_id)
@@ -266,6 +250,7 @@ class HisenseACPluginDataUpdateCoordinator(DataUpdateCoordinator):
                     
                     # Update device in coordinator
                     updated_device = DeviceInfo(device_data)
+                    updated_device.status["f_last_connectlife_update"] = datetime.now(timezone.utc).isoformat()
                     if msg_type == "status_devicestatus":
                         self.api_client.update_estimated_power(updated_device)
                     self._devices[device_key] = updated_device

@@ -122,9 +122,11 @@ Energy consumption sensors are created automatically:
 - `sensor.{device_name}_voltage`: Reported supply voltage (V), when supported
 - `sensor.{device_name}_estimated_power`: Estimated active power (W), calibrated from cloud energy data
 - `sensor.{device_name}_estimated_power_confidence`: Confidence in that estimate (%)
+- `sensor.{device_name}_last_connectlife_update`: Last status received from ConnectLife
+- `binary_sensor.{device_name}_electrical_data_available`: Whether voltage and current are available
 
 ConnectLife capabilities differ by model. The integration creates native selects for
-sleep level and temperature unit, a refresh button, and switches such as Eco and Beep
+sleep level and temperature unit, a refresh button, and switches such as Eco
 only when the API reports the matching writable property. Horizontal swing is exposed
 only for models that report a horizontal-swing property.
 For 009-128 units, separate Display On and Display Off buttons control the write-only

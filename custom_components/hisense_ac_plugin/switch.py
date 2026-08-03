@@ -12,6 +12,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity import DeviceInfo, EntityCategory
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.core import Event
@@ -60,13 +61,6 @@ SWITCH_TYPES = {
         "icon_on": "mdi:leaf",
         "icon_off": "mdi:leaf-off",
         "description": "Toggle eco mode"
-    },
-    "beep": {
-        "key": "t_beep",
-        "name": "Beeper",
-        "icon_on": "mdi:volume-high",
-        "icon_off": "mdi:volume-off",
-        "description": "Toggle the beeper"
     },
     "fahrenheit_display": {
         "key": StatusKey.T_TEMP_TYPE,
@@ -211,6 +205,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up the Hisense AC switch platform."""
     coordinator: HisenseACPluginDataUpdateCoordinator = hass.data[DOMAIN][config_entry.entry_id]
+    entity_registry = er.async_get(hass)
 
     try:
         # Get devices from coordinator
@@ -226,6 +221,10 @@ async def async_setup_entry(
             _LOGGER.debug("Processing device for switches: %s", device.to_dict())
 
             if isinstance(device, HisenseDeviceInfo) and device.is_devices():
+                if entity_id := entity_registry.async_get_entity_id(
+                    "switch", DOMAIN, f"{device.device_id}_beep"
+                ):
+                    entity_registry.async_remove(entity_id)
                 parser = coordinator.api_client.parsers.get(device.device_id)
 
                 # Add switches for each supported feature
@@ -621,16 +620,5 @@ class HisenseSwitch(CoordinatorEntity, SwitchEntity):
             _LOGGER.error("Failed to turn off %s: %s", self._attr_name, err)
 
     async def _async_schedule_update(self):
-        """Schedule entity update with debounce handling."""
-        current_time = time.time()
-
-        # Delay refresh while debounce window is active.
-        if current_time - self._last_action_time < self._debounce_delay:
-            _LOGGER.debug("Delaying switch update during debounce window")
-            remaining_time = self._debounce_delay - (current_time - self._last_action_time)
-            self.hass.helpers.dispatcher.async_dispatcher_send(
-                f"{DOMAIN}_switch_update_{self.entity_id}",
-                remaining_time
-            )
-        else:
-            self.async_schedule_update_ha_state(True)
+        """Schedule an entity-state update."""
+        self.async_schedule_update_ha_state(True)

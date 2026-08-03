@@ -12,7 +12,7 @@ from homeassistant.components.sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.const import (
@@ -79,6 +79,16 @@ SENSOR_TYPES = {
         "state_class": SensorStateClass.MEASUREMENT,
         "unit": "%",
         "description": "Confidence based on valid cloud-energy calibration samples"
+    },
+    "last_connectlife_update": {
+        "key": "f_last_connectlife_update",
+        "name": "Last ConnectLife Update",
+        "icon": "mdi:cloud-clock",
+        "device_class": SensorDeviceClass.TIMESTAMP,
+        "state_class": None,
+        "unit": None,
+        "entity_category": EntityCategory.DIAGNOSTIC,
+        "description": "Last status received from ConnectLife"
     },
     # "indoor_temperature": {
     #     "key": StatusKey.TEMPERATURE,
@@ -838,6 +848,7 @@ class HisenseSensor(CoordinatorEntity, SensorEntity):
         self._attr_icon = sensor_info["icon"]
         self._attr_device_class = sensor_info.get("device_class")
         self._attr_state_class = sensor_info.get("state_class")
+        self._attr_entity_category = sensor_info.get("entity_category")
         self._attr_native_unit_of_measurement = sensor_info.get("unit")
         self._attr_entity_registry_enabled_default = True
 
@@ -863,7 +874,7 @@ class HisenseSensor(CoordinatorEntity, SensorEntity):
             return False
         if self._sensor_type in {
             "power_consumption", "voltage", "electrical_value", "power_display", "estimated_power",
-            "estimated_power_confidence",
+            "estimated_power_confidence", "last_connectlife_update",
         }:
             return True
         current_mode = self._device.get_status_value(StatusKey.MODE)  # 使用正确键名
@@ -879,7 +890,7 @@ class HisenseSensor(CoordinatorEntity, SensorEntity):
         return True
 
     @property
-    def native_value(self) -> float | None:
+    def native_value(self) -> float | str | None:
         """Return the sensor value."""
         if not self._device:
             return None

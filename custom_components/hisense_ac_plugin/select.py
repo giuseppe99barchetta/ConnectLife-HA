@@ -13,7 +13,10 @@ from .coordinator import HisenseACPluginDataUpdateCoordinator
 from .models import DeviceInfo as HisenseDeviceInfo
 
 SELECT_TYPES = {
-    "sleep_level": ("t_sleep", {"Off": "0", "1": "1", "2": "2", "3": "3", "4": "4"}),
+    "sleep_level": (
+        "t_sleep",
+        {"Off": "0", "General": "1", "Elderly": "2", "Teenagers": "3", "Children": "4"},
+    ),
     "temperature_unit": ("t_temp_type", {"Celsius": "0", "Fahrenheit": "1"}),
 }
 

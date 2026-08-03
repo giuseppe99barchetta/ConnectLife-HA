@@ -103,7 +103,7 @@ def test_websocket_wifi_status_marks_offline_state_one_as_online():
         api_client=SimpleNamespace(),
         config_entry=SimpleNamespace(),
     )
-    coordinator._devices = {"dev1": build_device(offline_state=1)}
+    coordinator._set_devices({"dev1": build_device(offline_state=1)})
 
     coordinator._handle_ws_message(
         {
@@ -114,6 +114,7 @@ def test_websocket_wifi_status_marks_offline_state_one_as_online():
 
     assert coordinator._devices["dev1"].offline_state == 1
     assert coordinator._devices["dev1"].is_online is True
+    assert coordinator.get_device("puid-1") is coordinator._devices["dev1"]
 
 
 def test_websocket_status_recalculates_estimated_power():
@@ -126,9 +127,9 @@ def test_websocket_status_recalculates_estimated_power():
         api_client=api_client,
         config_entry=SimpleNamespace(),
     )
-    coordinator._devices = {
-        "dev1": build_device(status={"f_votage": "230", "f_electricity": "0"})
-    }
+    coordinator._set_devices(
+        {"dev1": build_device(status={"f_votage": "230", "f_electricity": "0"})}
+    )
 
     coordinator._handle_ws_message(
         {
@@ -140,6 +141,7 @@ def test_websocket_status_recalculates_estimated_power():
     )
 
     assert coordinator._devices["dev1"].status["f_estimated_power"] == 332
+    assert "f_last_connectlife_update" in coordinator._devices["dev1"].status
 
 
 def test_water_heater_uses_normalized_mode_for_temperature_range():
@@ -284,13 +286,14 @@ def test_009_128_exposes_discovered_controls_and_measurements():
             "t_device_info": "0",
             "f_votage": "228",
             "f_electricity": "2310",
+            "f_last_connectlife_update": "2026-08-03T18:00:00+00:00",
             "f_e_intemp": "0",
         },
     )
     parser = SimpleNamespace(
         attributes={
             key: SimpleNamespace()
-            for key in device.status | {"t_beep": "0", "f_power_display": "0"}
+            for key in device.status | {"f_power_display": "0"}
         }
     )
     commands = []
@@ -320,9 +323,11 @@ def test_009_128_exposes_discovered_controls_and_measurements():
 
     asyncio.run(run_test())
 
-    assert {entity._switch_type for entity in switches} == {"eco_mode", "beep", "fahrenheit_display"}
+    assert {entity._switch_type for entity in switches} == {"eco_mode", "fahrenheit_display"}
     assert numbers == []
     assert {entity._attr_name for entity in selects} == {"Sleep Level", "Temperature Unit"}
+    sleep_select = next(entity for entity in selects if entity._key == "t_sleep")
+    assert sleep_select._attr_options == ["Off", "General", "Elderly", "Teenagers", "Children"]
     assert {entity._button_type for entity in buttons} == {"refresh", "display_on", "display_off"}
     assert {
         entity._button_type: entity._properties for entity in buttons
@@ -334,14 +339,17 @@ def test_009_128_exposes_discovered_controls_and_measurements():
     assert {tuple(command["properties"].items())[0] for command in commands} == {
         ("t_device_info", "1"), ("t_dimmer", "0"), ("t_dimmer", "1")
     }
-    assert len(faults) == 1
-    assert faults[0].is_on is False
+    assert len(faults) == 2
+    electrical_data = next(entity for entity in faults if entity._attr_name == "Electrical Data Available")
+    fault = next(entity for entity in faults if entity._attr_name != "Electrical Data Available")
+    assert electrical_data.is_on is True
+    assert fault.is_on is False
     device.status["f_e_intemp"] = "1"
-    assert faults[0].is_on is True
+    assert fault.is_on is True
     device.status["f_e_intemp"] = "0"
-    assert faults[0].is_on is False
+    assert fault.is_on is False
     assert {entity._sensor_type for entity in sensors} == {
-        "voltage", "electrical_value",
+        "voltage", "electrical_value", "last_connectlife_update",
     }
     current = next(entity for entity in sensors if entity._sensor_type == "electrical_value")
     assert current._attr_name == "Current"
@@ -404,6 +412,10 @@ def test_estimated_power_is_calibrated_from_cloud_energy():
     assert device.status["f_estimated_power_confidence"] == 8
     assert saved[-1][device.puid]["calibration_samples"] == 1
 
+    device.status.pop("f_electricity")
+    client.update_estimated_power(device)
+    assert "f_estimated_power" not in device.status
+
 
 def test_power_calibration_is_restored():
     client = object.__new__(HisenseApiClient)
@@ -455,7 +467,7 @@ def test_options_flow_uses_private_config_entry_storage():
 
 def test_switch_scheduled_update_does_not_await_none():
     switch = HisenseSwitch.__new__(HisenseSwitch)
-    switch._last_action_time = 0
+    switch._last_action_time = time.time()
     switch._debounce_delay = 10
     calls = []
     switch.async_schedule_update_ha_state = lambda force: calls.append(force)

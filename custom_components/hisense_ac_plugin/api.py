@@ -9,7 +9,7 @@ import hashlib
 import base64
 from typing import Any, Dict, List, Callable
 import zoneinfo
-from datetime import datetime
+from datetime import datetime, timezone
 import pytz
 import re
 import hmac
@@ -572,6 +572,13 @@ class HisenseApiClient:
         voltage = self._coerce_power_consumption_value(device.status.get("f_votage"))
         current_ma = self._coerce_power_consumption_value(device.status.get("f_electricity"))
         if voltage is None or current_ma is None:
+            for key in (
+                "f_estimated_power",
+                "f_estimated_power_factor",
+                "f_estimated_power_confidence",
+                "f_estimated_power_samples",
+            ):
+                device.status.pop(key, None)
             return
 
         now = time.monotonic()
@@ -676,6 +683,7 @@ class HisenseApiClient:
                 deviceFeatureName = device_data.get("deviceFeatureName")
                 try:
                     device = DeviceInfo(device_data)
+                    device.status["f_last_connectlife_update"] = datetime.now(timezone.utc).isoformat()
                     supported_device_types = ["009", "008", "007", "006", "016", "035"]
                     if deviceTypeCode in supported_device_types:
                         devices[device.device_id] = device

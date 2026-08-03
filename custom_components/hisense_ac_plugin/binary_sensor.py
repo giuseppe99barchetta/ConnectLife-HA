@@ -25,6 +25,7 @@ async def async_setup_entry(
     for device in coordinator.data.values():
         if not isinstance(device, HisenseDeviceInfo) or not device.is_devices():
             continue
+        entities.append(HisenseElectricalDataBinarySensor(coordinator, device))
         parser = coordinator.api_client.parsers.get(device.device_id)
         for sensor_type, sensor_info in FAULT_SENSOR_TYPES.items():
             key = sensor_info["key"]
@@ -65,3 +66,39 @@ class HisenseFaultBinarySensor(CoordinatorEntity, BinarySensorEntity):
     def is_on(self) -> bool:
         device = self._device
         return bool(device and (self._key in device.failed_data or device.get_status_value(self._key) == "1"))
+
+
+class HisenseElectricalDataBinarySensor(CoordinatorEntity, BinarySensorEntity):
+    """Whether ConnectLife supplied both electrical measurements."""
+
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_name = "Electrical Data Available"
+    _attr_icon = "mdi:flash-check"
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator)
+        self._device_id = device.device_id
+        self._attr_unique_id = f"{device.device_id}_electrical_data_available"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, device.device_id)}, name=device.name,
+            manufacturer="Hisense", model=f"{device.type_name} ({device.feature_name})",
+        )
+
+    @property
+    def _device(self):
+        return self.coordinator.get_device(self._device_id)
+
+    @property
+    def available(self) -> bool:
+        return bool(self._device and self._device.is_online)
+
+    @property
+    def is_on(self) -> bool:
+        device = self._device
+        if not device:
+            return False
+        try:
+            return all(float(device.status[key]) >= 0 for key in ("f_votage", "f_electricity"))
+        except (KeyError, TypeError, ValueError):
+            return False
