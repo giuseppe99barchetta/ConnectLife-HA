@@ -29,6 +29,7 @@ from .const import (
     DeviceType,
     DEVICE_TYPES, DOMAIN, API_GET_HOUR_POWER, API_SELF_CHECK,
     POWER_UPDATE_INTERVAL, SELF_CHECK_UPDATE_INTERVAL,
+    DEFAULT_POWER_FACTOR, MIN_CALIBRATED_POWER_FACTOR, POWER_ESTIMATE_TARGET_SAMPLES,
 )
 from .devices.base import DeviceAttribute
 from .oauth2 import OAuth2Session
@@ -58,6 +59,7 @@ class HisenseApiClient:
         self.static_data: dict[str, Any] = {}
         self._property_lists: dict[tuple[str, str], list[dict[str, Any]]] = {}
         self._power_cache: dict[str, tuple[str, float, float | None]] = {}
+        self._power_estimates: dict[str, dict[str, float]] = {}
         self._self_check_updated: dict[str, float] = {}
         self._status_callbacks: dict[str, Callable[[dict[str, Any]], None]] = {}
         self._websocket: HisenseWebSocket | None = None
@@ -562,6 +564,59 @@ class HisenseApiClient:
             self._property_lists[model_key] = response.get("status") or []
         return self._property_lists[model_key]
 
+    def _update_estimated_power(self, device: DeviceInfo) -> None:
+        """Estimate active power and tune the factor from cloud energy data."""
+        voltage = self._coerce_power_consumption_value(device.status.get("f_votage"))
+        current_ma = self._coerce_power_consumption_value(device.status.get("f_electricity"))
+        if voltage is None or current_ma is None:
+            return
+
+        now = time.monotonic()
+        apparent_power = voltage * current_ma / 1000
+        state = self._power_estimates.setdefault(
+            device.puid,
+            {
+                "power_factor": DEFAULT_POWER_FACTOR,
+                "apparent_energy": 0.0,
+                "calibration_samples": 0,
+            },
+        )
+        previous_time = state.get("time")
+        if previous_time is not None:
+            elapsed_hours = (now - previous_time) / 3600
+            previous_apparent_power = state.get("apparent_power", apparent_power)
+            state["apparent_energy"] += (previous_apparent_power + apparent_power) * elapsed_hours / 2
+
+        energy_kwh = self._coerce_power_consumption_value(
+            device.status.get("f_power_consumption")
+        )
+        previous_energy_kwh = state.get("energy_kwh")
+        if energy_kwh is not None and previous_energy_kwh is not None:
+            energy_delta_wh = (energy_kwh - previous_energy_kwh) * 1000
+            apparent_energy = state["apparent_energy"]
+            if energy_delta_wh > 0 and apparent_energy > 0:
+                measured_power_factor = energy_delta_wh / apparent_energy
+                if MIN_CALIBRATED_POWER_FACTOR <= measured_power_factor <= 1:
+                    state["power_factor"] = (
+                        state["power_factor"] * 0.75 + measured_power_factor * 0.25
+                    )
+                    state["calibration_samples"] += 1
+                state["apparent_energy"] = 0.0
+            elif energy_delta_wh < 0:
+                state["apparent_energy"] = 0.0
+        if energy_kwh is not None:
+            state["energy_kwh"] = energy_kwh
+
+        state["time"] = now
+        state["apparent_power"] = apparent_power
+        # ponytail: calibration resets on reload; persist only if reloads prevent convergence.
+        device.status["f_estimated_power"] = round(apparent_power * state["power_factor"])
+        device.status["f_estimated_power_factor"] = round(state["power_factor"], 3)
+        device.status["f_estimated_power_confidence"] = round(
+            min(state["calibration_samples"] / POWER_ESTIMATE_TARGET_SAMPLES, 1) * 100
+        )
+        device.status["f_estimated_power_samples"] = state["calibration_samples"]
+
     async def async_get_devices(self) -> dict[str, DeviceInfo]:
         """Get list of devices with their current status."""
         _LOGGER.debug("Fetching device list with status")
@@ -714,6 +769,7 @@ class HisenseApiClient:
                                           device.status)
                         else:
                             self.parsers[device.device_id].remove_attribute("f_power_consumption")
+                        self._update_estimated_power(device)
                         _LOGGER.debug("Static data for device.status %s: %s", deviceFeatureCode,
                                           device.status)
                         last_self_check = self._self_check_updated.get(device.device_id, 0)

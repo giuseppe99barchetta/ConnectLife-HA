@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import time
 from types import SimpleNamespace
 
 from custom_components.hisense_ac_plugin import async_unload_entry
@@ -324,6 +325,35 @@ def test_property_list_is_cached_per_model():
 
     assert first == second == [{"propertyKey": "t_power"}]
     assert calls == [("009", "128")]
+
+
+def test_estimated_power_is_calibrated_from_cloud_energy():
+    client = object.__new__(HisenseApiClient)
+    client._power_estimates = {}
+    device = build_device(
+        status={
+            "f_votage": "230",
+            "f_electricity": "1000",
+            "f_power_consumption": "1.000",
+        }
+    )
+
+    client._update_estimated_power(device)
+    assert device.status["f_estimated_power"] == 218
+    assert device.status["f_estimated_power_confidence"] == 0
+
+    client._power_estimates[device.puid].update(
+        time=time.monotonic() - 3600,
+        apparent_power=230,
+        apparent_energy=0,
+        energy_kwh=1.000,
+    )
+    device.status["f_power_consumption"] = "1.184"
+    client._update_estimated_power(device)
+
+    assert 0.8 < device.status["f_estimated_power_factor"] < 0.95
+    assert device.status["f_estimated_power"] < 218
+    assert device.status["f_estimated_power_confidence"] == 8
 
 
 def test_async_unload_entry_calls_coordinator_cleanup():

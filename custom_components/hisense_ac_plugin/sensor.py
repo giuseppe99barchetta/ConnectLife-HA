@@ -62,6 +62,24 @@ SENSOR_TYPES = {
         "requires_status": True,
         "description": "Reported electrical power"
     },
+    "estimated_power": {
+        "key": "f_estimated_power",
+        "name": "Estimated Power",
+        "icon": "mdi:flash-outline",
+        "device_class": SensorDeviceClass.POWER,
+        "state_class": SensorStateClass.MEASUREMENT,
+        "unit": "W",
+        "description": "Power estimated from voltage, current and cloud energy"
+    },
+    "estimated_power_confidence": {
+        "key": "f_estimated_power_confidence",
+        "name": "Estimated Power Confidence",
+        "icon": "mdi:chart-bell-curve-cumulative",
+        "device_class": None,
+        "state_class": SensorStateClass.MEASUREMENT,
+        "unit": "%",
+        "description": "Confidence based on valid cloud-energy calibration samples"
+    },
     # "indoor_temperature": {
     #     "key": StatusKey.TEMPERATURE,
     #     "name": "Indoor Temperature",
@@ -844,7 +862,8 @@ class HisenseSensor(CoordinatorEntity, SensorEntity):
         if not super().available:  # 继承父类的可用性检查（设备在线）
             return False
         if self._sensor_type in {
-            "power_consumption", "voltage", "electrical_value", "power_display",
+            "power_consumption", "voltage", "electrical_value", "power_display", "estimated_power",
+            "estimated_power_confidence",
         }:
             return True
         current_mode = self._device.get_status_value(StatusKey.MODE)  # 使用正确键名
@@ -886,3 +905,16 @@ class HisenseSensor(CoordinatorEntity, SensorEntity):
                 value
             )
             return None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, float | int] | None:
+        """Expose the factor used for the estimated-power calculation."""
+        if self._sensor_type != "estimated_power":
+            return None
+        factor = self._device.get_status_value("f_estimated_power_factor")
+        if factor is None:
+            return None
+        return {
+            "power_factor": factor,
+            "calibration_samples": self._device.get_status_value("f_estimated_power_samples", 0),
+        }

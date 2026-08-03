@@ -120,12 +120,17 @@ Energy consumption sensors are created automatically:
 - `sensor.{device_name}_daily_energy`: Daily energy consumption (kWh)
 - `sensor.{device_name}_current`: Reported electrical current (mA), when supported
 - `sensor.{device_name}_voltage`: Reported supply voltage (V), when supported
+- `sensor.{device_name}_estimated_power`: Estimated active power (W), calibrated from cloud energy data
+- `sensor.{device_name}_estimated_power_confidence`: Confidence in that estimate (%)
 
 ConnectLife capabilities differ by model. The integration creates native selects for
 sleep level and temperature unit, a refresh button, and switches such as Eco and Beep
 only when the API reports the matching writable property. Horizontal swing is exposed
 only for models that report a horizontal-swing property.
 Opaque internal Q values and unreported power fields are intentionally not exposed.
+Estimated power uses voltage, current and a power factor learned from the cloud energy total;
+it is an estimate, not a substitute for a certified meter. Confidence reaches 100% after
+12 valid energy-calibration samples.
 
 ### Zone Control
 
