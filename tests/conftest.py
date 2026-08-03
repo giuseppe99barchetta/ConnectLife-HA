@@ -92,6 +92,8 @@ def _install_homeassistant_stubs() -> None:
         SWITCH = "switch"
         WATER_HEATER = "water_heater"
         NUMBER = "number"
+        SELECT = "select"
+        BUTTON = "button"
         SENSOR = "sensor"
         HUMIDIFIER = "humidifier"
 
@@ -302,6 +304,22 @@ def _install_homeassistant_stubs() -> None:
     number.NumberMode = NumberMode
     sys.modules["homeassistant.components.number"] = number
 
+    select = types.ModuleType("homeassistant.components.select")
+
+    class SelectEntity:
+        pass
+
+    select.SelectEntity = SelectEntity
+    sys.modules["homeassistant.components.select"] = select
+
+    button = types.ModuleType("homeassistant.components.button")
+
+    class ButtonEntity:
+        pass
+
+    button.ButtonEntity = ButtonEntity
+    sys.modules["homeassistant.components.button"] = button
+
     climate = types.ModuleType("homeassistant.components.climate")
 
     class ClimateEntity:
@@ -345,6 +363,8 @@ def _install_homeassistant_stubs() -> None:
     class SensorDeviceClass:
         TEMPERATURE = "temperature"
         ENERGY = "energy"
+        POWER = "power"
+        VOLTAGE = "voltage"
         HUMIDITY = "humidity"
         ENUM = "enum"
 

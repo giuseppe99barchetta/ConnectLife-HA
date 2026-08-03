@@ -119,6 +119,23 @@ class BaseBeanParser(BaseDeviceParser):
                     },
                     read_write="RW"
                 ),
+                "t_beep": DeviceAttribute(
+                    key="t_beep",
+                    name="Beeper",
+                    attr_type="Enum",
+                    step=1,
+                    value_range="0,1",
+                    value_map={"0": "Off", "1": "On"},
+                    read_write="RW"
+                ),
+                "t_device_info": DeviceAttribute(
+                    key="t_device_info",
+                    name="Refresh Device Data",
+                    attr_type="Enum",
+                    step=1,
+                    value_range="0,1",
+                    read_write="RW"
+                ),
                 "f_power_consumption": DeviceAttribute(
                     key="f_power_consumption",
                     name="电量累积消耗值",
@@ -167,6 +184,14 @@ class BaseBeanParser(BaseDeviceParser):
                     },
                     read_write="RW"
                 ),
+                "t_sleep": DeviceAttribute(
+                    key="t_sleep",
+                    name="Sleep Level",
+                    attr_type="Number",
+                    step=1,
+                    value_range="0~4",
+                    read_write="RW"
+                ),
                 "t_humidity": DeviceAttribute(
                     key="t_humidity",
                     name="设定湿度值",
@@ -194,7 +219,45 @@ class BaseBeanParser(BaseDeviceParser):
                         "1": "开启"
                     },
                     read_write="RW"
-                )
+                ),
+                "f_votage": DeviceAttribute(
+                    key="f_votage",
+                    name="Voltage",
+                    attr_type="Number",
+                    read_write="R"
+                ),
+                "f_electricity": DeviceAttribute(
+                    key="f_electricity",
+                    name="Electrical Value",
+                    attr_type="Number",
+                    read_write="R"
+                ),
+                "f_power_display": DeviceAttribute(
+                    key="f_power_display",
+                    name="Power",
+                    attr_type="Number",
+                    read_write="R"
+                ),
+                "f_cool_qvalue": DeviceAttribute(
+                    key="f_cool_qvalue",
+                    name="Cooling Q Value",
+                    attr_type="Number",
+                    read_write="R"
+                ),
+                "f_heat_qvalue": DeviceAttribute(
+                    key="f_heat_qvalue",
+                    name="Heating Q Value",
+                    attr_type="Number",
+                    read_write="R"
+                ),
+                "f_ecm": DeviceAttribute(
+                    key="f_ecm",
+                    name="Energy Calculation Method",
+                    attr_type="Enum",
+                    step=1,
+                    value_range="0,1",
+                    read_write="R"
+                ),
             }
         return self._attributes
 

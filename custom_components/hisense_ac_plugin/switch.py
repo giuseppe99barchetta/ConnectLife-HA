@@ -53,15 +53,28 @@ SWITCH_TYPES = {
         "icon_on": "mdi:fire",
         "icon_off": "mdi:fire-off",
         "description": "Toggle 8heat mode"
-    }
-    # ,
-    # "eco_mode": {
-    #     "key": StatusKey.ECO,
-    #     "name": "Eco Mode",
-    #     "icon_on": "mdi:leaf",
-    #     "icon_off": "mdi:leaf-off",
-    #     "description": "Toggle eco mode"
-    # }
+    },
+    "eco_mode": {
+        "key": StatusKey.ECO,
+        "name": "Eco Mode",
+        "icon_on": "mdi:leaf",
+        "icon_off": "mdi:leaf-off",
+        "description": "Toggle eco mode"
+    },
+    "beep": {
+        "key": "t_beep",
+        "name": "Beeper",
+        "icon_on": "mdi:volume-high",
+        "icon_off": "mdi:volume-off",
+        "description": "Toggle the beeper"
+    },
+    "fahrenheit_display": {
+        "key": StatusKey.T_TEMP_TYPE,
+        "name": "Fahrenheit Display",
+        "icon_on": "mdi:temperature-fahrenheit",
+        "icon_off": "mdi:temperature-celsius",
+        "description": "Toggle the unit shown by the device"
+    },
 }
 
 
@@ -89,7 +102,7 @@ def _has_switch_support(
         if switch_type == "8heat_mode":
             return True
     else:
-        return key_in_status
+        return True
 
     return True
 

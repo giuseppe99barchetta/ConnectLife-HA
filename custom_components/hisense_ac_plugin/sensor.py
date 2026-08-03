@@ -33,6 +33,60 @@ _LOGGER = logging.getLogger(__name__)
 
 # Define sensor types
 SENSOR_TYPES = {
+    "voltage": {
+        "key": "f_votage",
+        "name": "Voltage",
+        "icon": "mdi:sine-wave",
+        "device_class": SensorDeviceClass.VOLTAGE,
+        "state_class": SensorStateClass.MEASUREMENT,
+        "unit": "V",
+        "description": "Reported supply voltage"
+    },
+    "electrical_value": {
+        "key": "f_electricity",
+        "name": "Electrical Value",
+        "icon": "mdi:current-ac",
+        "device_class": None,
+        "state_class": None,
+        "unit": None,
+        "description": "Raw electrical value reported by the device"
+    },
+    "power_display": {
+        "key": "f_power_display",
+        "name": "Power",
+        "icon": "mdi:flash",
+        "device_class": SensorDeviceClass.POWER,
+        "state_class": SensorStateClass.MEASUREMENT,
+        "unit": "W",
+        "description": "Reported electrical power"
+    },
+    "cooling_qvalue": {
+        "key": "f_cool_qvalue",
+        "name": "Cooling Q Value",
+        "icon": "mdi:snowflake",
+        "device_class": None,
+        "state_class": None,
+        "unit": None,
+        "description": "Raw cooling Q value reported by the device"
+    },
+    "heating_qvalue": {
+        "key": "f_heat_qvalue",
+        "name": "Heating Q Value",
+        "icon": "mdi:fire",
+        "device_class": None,
+        "state_class": None,
+        "unit": None,
+        "description": "Raw heating Q value reported by the device"
+    },
+    "energy_calculation_method": {
+        "key": "f_ecm",
+        "name": "Energy Calculation Method",
+        "icon": "mdi:calculator-variant",
+        "device_class": SensorDeviceClass.ENUM,
+        "state_class": None,
+        "unit": None,
+        "description": "Device energy calculation method"
+    },
     # "indoor_temperature": {
     #     "key": StatusKey.TEMPERATURE,
     #     "name": "Indoor Temperature",
@@ -831,7 +885,10 @@ class HisenseSensor(CoordinatorEntity, SensorEntity):
         """Return if entity is available."""
         if not super().available:  # 继承父类的可用性检查（设备在线）
             return False
-        if self._sensor_type == "power_consumption":
+        if self._sensor_type in {
+            "power_consumption", "voltage", "electrical_value", "power_display",
+            "cooling_qvalue", "heating_qvalue", "energy_calculation_method",
+        }:
             return True
         current_mode = self._device.get_status_value(StatusKey.MODE)  # 使用正确键名
         # 判断自动模式

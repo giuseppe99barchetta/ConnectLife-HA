@@ -354,7 +354,7 @@ class HisenseApiClient:
             
             # Get system parameters
             params = await self._get_system_parameters()
-            _LOGGER.debug("System parameters: %s", json.dumps(params, indent=2))
+            _LOGGER.debug("System parameters: %s", json.dumps({k: "***" if k == "accessToken" else v for k, v in params.items()}, indent=2))
             
             # Merge with provided data if any
             request_data = data if data else {}
@@ -363,7 +363,7 @@ class HisenseApiClient:
             request_data.update(params)
             
             # Log final request data
-            _LOGGER.debug("Final request data: %s", json.dumps(request_data, indent=2))
+            _LOGGER.debug("Final request data: %s", json.dumps({k: "***" if k == "accessToken" else v for k, v in request_data.items()}, indent=2))
             
             if headers is None:
                 headers = {}
@@ -425,7 +425,7 @@ class HisenseApiClient:
             _LOGGER.debug("URL: %s", url)
             _LOGGER.debug("Method: %s", method)
             _LOGGER.debug("Headers: %s", {
-                k: v if k.lower() != 'accessToken' else '***' 
+                k: v if k.lower() != "accesstoken" else "***"
                 for k, v in headers.items()
             })
             if request_data:
@@ -1024,7 +1024,7 @@ class HisenseApiClient:
         puid: str,
         properties: dict[str, Any],
     ) -> dict[str, Any]:
-        _LOGGER.debug("测试设备反应时间，下发指令 %s", property)
+        _LOGGER.debug("Sending device command: %s", properties)
         """Control device by setting properties.
         
         Args:

@@ -25,7 +25,7 @@ _LOGGER = logging.getLogger(__name__)
 # This integration can only be configured via config entry
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
-PLATFORMS: list[Platform] = [Platform.CLIMATE, Platform.SWITCH, Platform.WATER_HEATER, Platform.NUMBER, Platform.SENSOR, Platform.HUMIDIFIER]
+PLATFORMS: list[Platform] = [Platform.CLIMATE, Platform.SWITCH, Platform.WATER_HEATER, Platform.NUMBER, Platform.SELECT, Platform.BUTTON, Platform.SENSOR, Platform.HUMIDIFIER]
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the Hisense AC Plugin component."""

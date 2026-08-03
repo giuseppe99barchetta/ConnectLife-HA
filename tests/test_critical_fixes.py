@@ -25,6 +25,8 @@ from custom_components.hisense_ac_plugin.models import DeviceInfo
 from custom_components.hisense_ac_plugin import number as number_module
 from custom_components.hisense_ac_plugin import sensor as sensor_module
 from custom_components.hisense_ac_plugin.number import async_setup_entry as setup_number
+from custom_components.hisense_ac_plugin.select import async_setup_entry as setup_select
+from custom_components.hisense_ac_plugin.button import async_setup_entry as setup_button
 from custom_components.hisense_ac_plugin.humidifier import async_setup_entry as setup_humidifier
 from custom_components.hisense_ac_plugin.switch import async_setup_entry as setup_switches
 from custom_components.hisense_ac_plugin.switch import HisenseSwitch
@@ -238,6 +240,56 @@ def test_rapid_mode_switch_for_009_128_is_skipped_without_t_super():
 
     rapid_entities = [entity for entity in added if getattr(entity, "_switch_type", None) == "rapid_mode"]
     assert rapid_entities == []
+
+
+def test_009_128_exposes_discovered_controls_and_measurements():
+    hass = DummyHass()
+    entry = SimpleNamespace(entry_id="entry-1")
+    device = build_device(
+        type_code="009",
+        feature_code="128",
+        status={
+            StatusKey.POWER: "1",
+            StatusKey.ECO: "1",
+            StatusKey.T_TEMP_TYPE: "0",
+            "t_sleep": "0",
+            "t_device_info": "0",
+            "f_votage": "228",
+            "f_electricity": "2310",
+            "f_power_display": "2152",
+            "f_cool_qvalue": "2152",
+            "f_heat_qvalue": "0",
+            "f_ecm": "1",
+        },
+    )
+    parser = SimpleNamespace(
+        attributes={key: SimpleNamespace() for key in device.status | {"t_beep": "0"}}
+    )
+    coordinator = SimpleNamespace(
+        hass=hass,
+        data={device.device_id: device},
+        api_client=SimpleNamespace(parsers={device.device_id: parser}, static_data={}),
+    )
+    hass.data[DOMAIN] = {entry.entry_id: coordinator}
+    switches, numbers, selects, buttons, sensors = [], [], [], [], []
+
+    async def run_test():
+        await setup_switches(hass, entry, switches.extend)
+        await setup_number(hass, entry, numbers.extend)
+        await setup_select(hass, entry, selects.extend)
+        await setup_button(hass, entry, buttons.extend)
+        await sensor_module.async_setup_entry(hass, entry, sensors.extend)
+
+    asyncio.run(run_test())
+
+    assert {entity._switch_type for entity in switches} == {"eco_mode", "beep", "fahrenheit_display"}
+    assert numbers == []
+    assert {entity._attr_name for entity in selects} == {"Sleep Level", "Temperature Unit"}
+    assert len(buttons) == 1
+    assert {entity._sensor_type for entity in sensors} == {
+        "voltage", "electrical_value", "power_display", "cooling_qvalue",
+        "heating_qvalue", "energy_calculation_method",
+    }
 
 
 def test_async_unload_entry_calls_coordinator_cleanup():
@@ -543,10 +595,19 @@ def test_filtered_parser_keeps_horizontal_swing_alias_when_property_list_exposes
             {"propertyKey": "t_work_mode", "propertyValueList": "0,1,2,3,4"},
             {"propertyKey": "t_up_down", "propertyValueList": "0,1"},
             {"propertyKey": "t_lr", "propertyValueList": "0,1"},
+            {"propertyKey": "t_beep", "propertyValueList": "0,1"},
+            {"propertyKey": "t_sleep", "propertyValueList": "0,1,2,3,4"},
+            {"propertyKey": "f_votage", "propertyValueList": None},
+            {"propertyKey": "f_electricity", "propertyValueList": None},
+            {"propertyKey": "f_power_display", "propertyValueList": None},
+            {"propertyKey": "f_cool_qvalue", "propertyValueList": None},
+            {"propertyKey": "f_heat_qvalue", "propertyValueList": None},
+            {"propertyKey": "f_ecm", "propertyValueList": "0,1"},
         ],
     )
 
     assert "t_lr" in parser.attributes
+    assert {"t_beep", "t_sleep", "f_votage", "f_electricity", "f_power_display", "f_cool_qvalue", "f_heat_qvalue", "f_ecm"} <= set(parser.attributes)
 
 
 def test_daily_power_consumption_sums_hourly_payload_values():
