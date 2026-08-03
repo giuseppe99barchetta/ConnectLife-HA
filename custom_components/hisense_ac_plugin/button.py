@@ -42,8 +42,8 @@ class HisenseButton(CoordinatorEntity, ButtonEntity):
     _attr_has_entity_name = True
     _BUTTONS = {
         "refresh": ("Refresh Device Data", "mdi:refresh", {"t_device_info": "1"}),
-        "display_on": ("Display On", "mdi:led-on", {"t_dimmer": "0"}),
-        "display_off": ("Display Off", "mdi:led-off", {"t_dimmer": "1"}),
+        "display_on": ("Display On", "mdi:led-on", {"t_dimmer": "1"}),
+        "display_off": ("Display Off", "mdi:led-off", {"t_dimmer": "0"}),
     }
 
     def __init__(self, coordinator, device, button_type: str) -> None:

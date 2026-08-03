@@ -567,7 +567,7 @@ class HisenseApiClient:
             self._property_lists[model_key] = response.get("status") or []
         return self._property_lists[model_key]
 
-    def _update_estimated_power(self, device: DeviceInfo) -> None:
+    def update_estimated_power(self, device: DeviceInfo) -> None:
         """Estimate active power and tune the factor from cloud energy data."""
         voltage = self._coerce_power_consumption_value(device.status.get("f_votage"))
         current_ma = self._coerce_power_consumption_value(device.status.get("f_electricity"))
@@ -809,7 +809,7 @@ class HisenseApiClient:
                                           device.status)
                         else:
                             self.parsers[device.device_id].remove_attribute("f_power_consumption")
-                        self._update_estimated_power(device)
+                        self.update_estimated_power(device)
                         _LOGGER.debug("Static data for device.status %s: %s", deviceFeatureCode,
                                           device.status)
                         last_self_check = self._self_check_updated.get(device.device_id, 0)

@@ -116,6 +116,32 @@ def test_websocket_wifi_status_marks_offline_state_one_as_online():
     assert coordinator._devices["dev1"].is_online is True
 
 
+def test_websocket_status_recalculates_estimated_power():
+    hass = DummyHass()
+    api_client = object.__new__(HisenseApiClient)
+    api_client._power_estimates = {}
+    api_client._power_estimates_store = SimpleNamespace(async_delay_save=lambda *args: None)
+    coordinator = HisenseACPluginDataUpdateCoordinator(
+        hass,
+        api_client=api_client,
+        config_entry=SimpleNamespace(),
+    )
+    coordinator._devices = {
+        "dev1": build_device(status={"f_votage": "230", "f_electricity": "0"})
+    }
+
+    coordinator._handle_ws_message(
+        {
+            "msgTypeCode": "status_devicestatus",
+            "content": json.dumps(
+                {"puid": "puid-1", "properties": {"f_electricity": "1520"}}
+            ),
+        }
+    )
+
+    assert coordinator._devices["dev1"].status["f_estimated_power"] == 332
+
+
 def test_water_heater_uses_normalized_mode_for_temperature_range():
     hass = DummyHass()
     device = build_device(
@@ -298,6 +324,13 @@ def test_009_128_exposes_discovered_controls_and_measurements():
     assert numbers == []
     assert {entity._attr_name for entity in selects} == {"Sleep Level", "Temperature Unit"}
     assert {entity._button_type for entity in buttons} == {"refresh", "display_on", "display_off"}
+    assert {
+        entity._button_type: entity._properties for entity in buttons
+    } == {
+        "refresh": {"t_device_info": "1"},
+        "display_on": {"t_dimmer": "1"},
+        "display_off": {"t_dimmer": "0"},
+    }
     assert {tuple(command["properties"].items())[0] for command in commands} == {
         ("t_device_info", "1"), ("t_dimmer", "0"), ("t_dimmer", "1")
     }
@@ -353,7 +386,7 @@ def test_estimated_power_is_calibrated_from_cloud_energy():
         }
     )
 
-    client._update_estimated_power(device)
+    client.update_estimated_power(device)
     assert device.status["f_estimated_power"] == 218
     assert device.status["f_estimated_power_confidence"] == 0
 
@@ -364,7 +397,7 @@ def test_estimated_power_is_calibrated_from_cloud_energy():
         energy_kwh=1.000,
     )
     device.status["f_power_consumption"] = "1.184"
-    client._update_estimated_power(device)
+    client.update_estimated_power(device)
 
     assert 0.8 < device.status["f_estimated_power_factor"] < 0.95
     assert device.status["f_estimated_power"] < 218

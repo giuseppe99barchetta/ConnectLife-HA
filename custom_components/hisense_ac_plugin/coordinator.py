@@ -266,6 +266,8 @@ class HisenseACPluginDataUpdateCoordinator(DataUpdateCoordinator):
                     
                     # Update device in coordinator
                     updated_device = DeviceInfo(device_data)
+                    if msg_type == "status_devicestatus":
+                        self.api_client.update_estimated_power(updated_device)
                     self._devices[device_key] = updated_device
                     self.data = self._devices
                     
