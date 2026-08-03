@@ -27,6 +27,7 @@ from custom_components.hisense_ac_plugin import sensor as sensor_module
 from custom_components.hisense_ac_plugin.number import async_setup_entry as setup_number
 from custom_components.hisense_ac_plugin.select import async_setup_entry as setup_select
 from custom_components.hisense_ac_plugin.button import async_setup_entry as setup_button
+from custom_components.hisense_ac_plugin.binary_sensor import async_setup_entry as setup_binary_sensors
 from custom_components.hisense_ac_plugin.humidifier import async_setup_entry as setup_humidifier
 from custom_components.hisense_ac_plugin.switch import async_setup_entry as setup_switches
 from custom_components.hisense_ac_plugin.switch import HisenseSwitch
@@ -256,28 +257,30 @@ def test_009_128_exposes_discovered_controls_and_measurements():
             "t_device_info": "0",
             "f_votage": "228",
             "f_electricity": "2310",
-            "f_power_display": "2152",
-            "f_cool_qvalue": "2152",
-            "f_heat_qvalue": "0",
-            "f_ecm": "1",
+            "f_e_intemp": "0",
         },
     )
     parser = SimpleNamespace(
-        attributes={key: SimpleNamespace() for key in device.status | {"t_beep": "0"}}
+        attributes={
+            key: SimpleNamespace()
+            for key in device.status | {"t_beep": "0", "f_power_display": "0"}
+        }
     )
     coordinator = SimpleNamespace(
         hass=hass,
         data={device.device_id: device},
         api_client=SimpleNamespace(parsers={device.device_id: parser}, static_data={}),
+        get_device=lambda _device_id: device,
     )
     hass.data[DOMAIN] = {entry.entry_id: coordinator}
-    switches, numbers, selects, buttons, sensors = [], [], [], [], []
+    switches, numbers, selects, buttons, sensors, faults = [], [], [], [], [], []
 
     async def run_test():
         await setup_switches(hass, entry, switches.extend)
         await setup_number(hass, entry, numbers.extend)
         await setup_select(hass, entry, selects.extend)
         await setup_button(hass, entry, buttons.extend)
+        await setup_binary_sensors(hass, entry, faults.extend)
         await sensor_module.async_setup_entry(hass, entry, sensors.extend)
 
     asyncio.run(run_test())
@@ -286,10 +289,41 @@ def test_009_128_exposes_discovered_controls_and_measurements():
     assert numbers == []
     assert {entity._attr_name for entity in selects} == {"Sleep Level", "Temperature Unit"}
     assert len(buttons) == 1
+    assert len(faults) == 1
+    assert faults[0].is_on is False
+    device.status["f_e_intemp"] = "1"
+    assert faults[0].is_on is True
+    device.status["f_e_intemp"] = "0"
+    assert faults[0].is_on is False
     assert {entity._sensor_type for entity in sensors} == {
-        "voltage", "electrical_value", "power_display", "cooling_qvalue",
-        "heating_qvalue", "energy_calculation_method",
+        "voltage", "electrical_value",
     }
+    current = next(entity for entity in sensors if entity._sensor_type == "electrical_value")
+    assert current._attr_name == "Current"
+    assert current._attr_native_unit_of_measurement == "mA"
+    assert current.native_value == 2310.0
+
+
+def test_property_list_is_cached_per_model():
+    client = object.__new__(HisenseApiClient)
+    client._property_lists = {}
+    calls = []
+
+    async def get_property_list(device_type, feature_code):
+        calls.append((device_type, feature_code))
+        return {"status": [{"propertyKey": "t_power"}]}
+
+    client.async_get_property_list = get_property_list
+
+    async def run_test():
+        first = await client._async_get_cached_property_list("009", "128")
+        second = await client._async_get_cached_property_list("009", "128")
+        return first, second
+
+    first, second = asyncio.run(run_test())
+
+    assert first == second == [{"propertyKey": "t_power"}]
+    assert calls == [("009", "128")]
 
 
 def test_async_unload_entry_calls_coordinator_cleanup():

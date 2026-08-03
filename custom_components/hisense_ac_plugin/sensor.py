@@ -13,6 +13,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.const import (
     UnitOfTemperature,
@@ -44,12 +45,12 @@ SENSOR_TYPES = {
     },
     "electrical_value": {
         "key": "f_electricity",
-        "name": "Electrical Value",
+        "name": "Current",
         "icon": "mdi:current-ac",
-        "device_class": None,
-        "state_class": None,
-        "unit": None,
-        "description": "Raw electrical value reported by the device"
+        "device_class": SensorDeviceClass.CURRENT,
+        "state_class": SensorStateClass.MEASUREMENT,
+        "unit": "mA",
+        "description": "Reported electrical current"
     },
     "power_display": {
         "key": "f_power_display",
@@ -58,34 +59,8 @@ SENSOR_TYPES = {
         "device_class": SensorDeviceClass.POWER,
         "state_class": SensorStateClass.MEASUREMENT,
         "unit": "W",
+        "requires_status": True,
         "description": "Reported electrical power"
-    },
-    "cooling_qvalue": {
-        "key": "f_cool_qvalue",
-        "name": "Cooling Q Value",
-        "icon": "mdi:snowflake",
-        "device_class": None,
-        "state_class": None,
-        "unit": None,
-        "description": "Raw cooling Q value reported by the device"
-    },
-    "heating_qvalue": {
-        "key": "f_heat_qvalue",
-        "name": "Heating Q Value",
-        "icon": "mdi:fire",
-        "device_class": None,
-        "state_class": None,
-        "unit": None,
-        "description": "Raw heating Q value reported by the device"
-    },
-    "energy_calculation_method": {
-        "key": "f_ecm",
-        "name": "Energy Calculation Method",
-        "icon": "mdi:calculator-variant",
-        "device_class": SensorDeviceClass.ENUM,
-        "state_class": None,
-        "unit": None,
-        "description": "Device energy calculation method"
     },
     # "indoor_temperature": {
     #     "key": StatusKey.TEMPERATURE,
@@ -714,6 +689,23 @@ for sensor_info in SENSOR_TYPES.values():
     if sensor_info["device_class"] == SensorDeviceClass.ENUM:
         sensor_info["description"] = sensor_info["name"]
 
+FAULT_SENSOR_TYPES = {
+    sensor_type: sensor_info
+    for sensor_type, sensor_info in SENSOR_TYPES.items()
+    if sensor_type.startswith("f_e_")
+}
+
+RETIRED_SENSOR_TYPES = {
+    "cooling_qvalue",
+    "heating_qvalue",
+    "energy_calculation_method",
+}
+SENSOR_TYPES = {
+    sensor_type: sensor_info
+    for sensor_type, sensor_info in SENSOR_TYPES.items()
+    if sensor_type not in FAULT_SENSOR_TYPES
+}
+
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
@@ -731,6 +723,24 @@ async def async_setup_entry(
             _LOGGER.warning("No devices found in coordinator data")
             return
 
+        entity_registry = er.async_get(hass)
+        for device in devices.values():
+            if not isinstance(device, HisenseDeviceInfo):
+                continue
+            retired_types = RETIRED_SENSOR_TYPES.copy()
+            if (
+                device.type_code == "009"
+                and device.feature_code == "128"
+                and "f_power_display" not in device.status
+            ):
+                retired_types.add("power_display")
+            for sensor_type in retired_types:
+                entity_id = entity_registry.async_get_entity_id(
+                    "sensor", DOMAIN, f"{device.device_id}_{sensor_type}"
+                )
+                if entity_id:
+                    entity_registry.async_remove(entity_id)
+
         entities = []
         for device_id, device in devices.items():
             _LOGGER.debug("Processing device for sensors: %s", device.to_dict())
@@ -740,6 +750,8 @@ async def async_setup_entry(
                     # Check if the device supports this attribute
                     parser = coordinator.api_client.parsers.get(device.device_id)
                     if device.has_attribute(sensor_info["key"],parser):
+                        if sensor_info.get("requires_status") and sensor_info["key"] not in device.status:
+                            continue
                         if device.status.get("f_zone2_select") == "0" and sensor_type == "f_zone2water_temp2":
                             continue
                         _LOGGER.info(
@@ -747,11 +759,6 @@ async def async_setup_entry(
                             device.feature_code,
                             sensor_info["name"]
                         )
-                        # 判断是否是故障传感器
-                        is_fault_sensor = sensor_info["device_class"] == SensorDeviceClass.ENUM
-
-                        # 获取当前值
-                        current_value = device.status.get(sensor_info["key"])
                         static_data = coordinator.api_client.static_data.get(device.device_id)
                         _LOGGER.info("获取到静态数据: %s: %s", device.feature_code, static_data)
                         if static_data is not None:
@@ -759,27 +766,6 @@ async def async_setup_entry(
                             if sensor_info["key"] == StatusKey.FHUMIDITY and hasHumidity != "1":
                                 continue
 
-                        # 故障传感器特殊处理：值为0或None时跳过
-                        if is_fault_sensor:
-                            if current_value is None or current_value == "0":
-                                continue
-                        entity = HisenseSensor(
-                            coordinator,
-                            device,
-                            sensor_type,
-                            sensor_info
-                        )
-                        entities.append(entity)
-                    status_list = device.failed_data
-                    if not status_list:
-                        continue
-                    # 在遍历传感器类型时：
-                    if sensor_type in status_list:  # 仅检查键是否存在
-                        _LOGGER.info(
-                            "添加告警 %s sensor for device: %s",
-                            sensor_info["name"],
-                            device.name
-                        )
                         entity = HisenseSensor(
                             coordinator,
                             device,
@@ -837,34 +823,6 @@ class HisenseSensor(CoordinatorEntity, SensorEntity):
         self._attr_native_unit_of_measurement = sensor_info.get("unit")
         self._attr_entity_registry_enabled_default = True
 
-    def _handle_coordinator_update(self) -> None:
-        device = self.coordinator.get_device(self._device_id)
-        if not device:
-            _LOGGER.warning("Device %s not found during sensor update", self._device_id)
-            return
-        """处理协调器更新，实现动态实体管理"""
-        # 获取当前设备状态
-        device = self.coordinator.get_device(self._device_id)
-        current_value = device.get_status_value(self._sensor_key)
-
-        # 故障传感器特殊处理
-        if self._sensor_info["device_class"] == SensorDeviceClass.ENUM:
-            # 当值变为0或无效时移除实体
-            if current_value in (None, "0"):
-                _LOGGER.info("Removing fault sensor %s (current value: %s)",
-                             self.entity_id, current_value)
-                self.hass.async_create_task(
-                    self.hass.services.async_call(
-                        "entity_registry",
-                        "remove",
-                        {"entity_id": self.entity_id}
-                    )
-                )
-                return  # 终止后续处理
-
-        # 调用父类处理更新
-        super()._handle_coordinator_update()
-
     @property
     def name(self) -> str:
         """动态获取翻译后的名称"""
@@ -887,7 +845,6 @@ class HisenseSensor(CoordinatorEntity, SensorEntity):
             return False
         if self._sensor_type in {
             "power_consumption", "voltage", "electrical_value", "power_display",
-            "cooling_qvalue", "heating_qvalue", "energy_calculation_method",
         }:
             return True
         current_mode = self._device.get_status_value(StatusKey.MODE)  # 使用正确键名
@@ -915,7 +872,10 @@ class HisenseSensor(CoordinatorEntity, SensorEntity):
             # Convert to float for numeric sensors
             if self._attr_device_class in [
                 SensorDeviceClass.TEMPERATURE,
-                SensorDeviceClass.ENERGY
+                SensorDeviceClass.ENERGY,
+                SensorDeviceClass.VOLTAGE,
+                SensorDeviceClass.CURRENT,
+                SensorDeviceClass.POWER,
             ]:
                 return float(value)
             return value

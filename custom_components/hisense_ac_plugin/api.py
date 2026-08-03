@@ -28,6 +28,7 @@ from .const import (
     CLIENT_SECRET,
     DeviceType,
     DEVICE_TYPES, DOMAIN, API_GET_HOUR_POWER, API_SELF_CHECK,
+    POWER_UPDATE_INTERVAL, SELF_CHECK_UPDATE_INTERVAL,
 )
 from .devices.base import DeviceAttribute
 from .oauth2 import OAuth2Session
@@ -55,6 +56,9 @@ class HisenseApiClient:
         self._devices: dict[str, DeviceInfo] = {}
         self.parsers: dict[str, BaseDeviceParser] = {}
         self.static_data: dict[str, Any] = {}
+        self._property_lists: dict[tuple[str, str], list[dict[str, Any]]] = {}
+        self._power_cache: dict[str, tuple[str, float, float | None]] = {}
+        self._self_check_updated: dict[str, float] = {}
         self._status_callbacks: dict[str, Callable[[dict[str, Any]], None]] = {}
         self._websocket: HisenseWebSocket | None = None
         self._source_id: str | None = None
@@ -546,6 +550,18 @@ class HisenseApiClient:
 
         return sum(values)
 
+    async def _async_get_cached_property_list(
+        self, device_type_code: str, device_feature_code: str
+    ) -> list[dict[str, Any]]:
+        """Return model capabilities, fetching them once per integration load."""
+        model_key = (str(device_type_code), str(device_feature_code))
+        if model_key not in self._property_lists:
+            response = await self.async_get_property_list(
+                device_type_code, device_feature_code
+            )
+            self._property_lists[model_key] = response.get("status") or []
+        return self._property_lists[model_key]
+
     async def async_get_devices(self) -> dict[str, DeviceInfo]:
         """Get list of devices with their current status."""
         _LOGGER.debug("Fetching device list with status")
@@ -574,13 +590,15 @@ class HisenseApiClient:
                             device.debug_info()
                         )
 
-                        response = await self.async_get_property_list(deviceTypeCode,deviceFeatureCode)
-                        if "99" in deviceFeatureCode:
+                        propertyList = await self._async_get_cached_property_list(
+                            deviceTypeCode, deviceFeatureCode
+                        )
+
+                        if "99" in deviceFeatureCode and device.device_id not in self.static_data:
                             re = await self.async_query_static_data(device.puid)
                             _LOGGER.debug("Static data for re %s: %s", deviceFeatureCode,
                                           re)
                             self.static_data[device.device_id] = re.get("status")
-                        propertyList = response.get("status")
                         _LOGGER.debug("Static data for propertyList %s: %s", deviceFeatureCode,
                                       propertyList)
 
@@ -677,11 +695,18 @@ class HisenseApiClient:
 
                         if has_power:
                             current_date = datetime.now().date().isoformat()
-                            power_response = await self.async_get_hour_power(current_date, device.puid)
-                            power = power_response.get("status")
-                            value = self._calculate_daily_power_consumption(power)
-                            _LOGGER.debug("Power response %s: %s daily_power_consumption=%s", deviceFeatureCode,
-                                          power_response, value)
+                            cached_power = self._power_cache.get(device.puid)
+                            if (
+                                cached_power
+                                and cached_power[0] == current_date
+                                and time.monotonic() - cached_power[1] < POWER_UPDATE_INTERVAL
+                            ):
+                                value = cached_power[2]
+                            else:
+                                power_response = await self.async_get_hour_power(current_date, device.puid)
+                                value = self._calculate_daily_power_consumption(power_response.get("status"))
+                                self._power_cache[device.puid] = (current_date, time.monotonic(), value)
+                                _LOGGER.debug("Daily power consumption for %s: %s", deviceFeatureCode, value)
                             _LOGGER.debug("Static data for device.status %s: %s", deviceFeatureCode,
                                           device.status)
                             device.status["f_power_consumption"] = value
@@ -691,21 +716,13 @@ class HisenseApiClient:
                             self.parsers[device.device_id].remove_attribute("f_power_consumption")
                         _LOGGER.debug("Static data for device.status %s: %s", deviceFeatureCode,
                                           device.status)
-                        # Populate fault list from self-check data.
-                        data = await self.async_api_self_check("1", device.puid)
-                        failed_data = data.get("status", {}).get("selfCheckFailedList")
-                        _LOGGER.debug(
-                            "Self-check data %s: full=%s failed=%s",
-                            deviceFeatureCode,
-                            data, failed_data)
-                        if failed_data:
-                            failed_list = [item.get("statusKey") for item in failed_data]
-                            # self.failed_data[device.device_id] = failed_list
-                            device.failed_data = failed_list
-                            _LOGGER.debug(
-                                "Failed self-check keys %s: full=%s failed=%s keys=%s",
-                                deviceFeatureCode,
-                                data, failed_data, failed_list)
+                        last_self_check = self._self_check_updated.get(device.device_id, 0)
+                        if time.monotonic() - last_self_check >= SELF_CHECK_UPDATE_INTERVAL:
+                            data = await self.async_api_self_check("1", device.puid)
+                            failed_data = data.get("status", {}).get("selfCheckFailedList") or []
+                            self.failed_data[device.device_id] = [item.get("statusKey") for item in failed_data]
+                            self._self_check_updated[device.device_id] = time.monotonic()
+                        device.failed_data = self.failed_data.get(device.device_id, [])
                     else:
                         _LOGGER.warning(
                             "Skipping unsupported device type:\n%s",

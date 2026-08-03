@@ -228,7 +228,7 @@ class BaseBeanParser(BaseDeviceParser):
                 ),
                 "f_electricity": DeviceAttribute(
                     key="f_electricity",
-                    name="Electrical Value",
+                    name="Current",
                     attr_type="Number",
                     read_write="R"
                 ),

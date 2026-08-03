@@ -235,7 +235,7 @@ class DeviceInfo:
         attributes = parser.attributes
         if attributes:
             _LOGGER.debug("Checking if device has status: %s", attributes)
-            return key in attributes
+            return key in attributes or key in self.status
         else:
             if key in self.status:
                 return True

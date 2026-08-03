@@ -12,13 +12,14 @@ service.
 
 ## Features
 
-- 🌡️ **Climate Control**: Full air conditioner control (temperature, mode, fan speed, swing)
+- 🌡️ **Climate Control**: Temperature, mode, fan speed and every swing direction reported by the model
 - 💧 **Humidity Management**: Dehumidifier and humidifier control
 - 🔥 **Water Heating**: Heat pump and water heater management
 - 📊 **Real-time Monitoring**: Temperature, humidity, and energy consumption sensors
 - 🏠 **Zone Control**: Multi-zone climate management for compatible systems
-- ⚡ **Energy Tracking**: Daily energy consumption monitoring
-- 🔧 **Fault Detection**: Real-time error code monitoring and alerts
+- ⚡ **Energy Tracking**: Daily consumption plus reported voltage and current values
+- 🔧 **Fault Detection**: Persistent diagnostic fault entities (on while a fault is active)
+- 🎛️ **Native Controls**: Switches, selects and buttons for every writable property reported by ConnectLife
 
 ## Supported Devices
 
@@ -35,7 +36,7 @@ service.
 
 ### Prerequisites
 
-- Home Assistant 2023.1.0 or later
+- Home Assistant 2026.7.3 or later
 - ConnectLife account with registered devices
 - Active internet connection for cloud API access
 
@@ -117,7 +118,14 @@ automation:
 Energy consumption sensors are created automatically:
 
 - `sensor.{device_name}_daily_energy`: Daily energy consumption (kWh)
-- `sensor.{device_name}_power`: Current power consumption (W)
+- `sensor.{device_name}_current`: Reported electrical current (mA), when supported
+- `sensor.{device_name}_voltage`: Reported supply voltage (V), when supported
+
+ConnectLife capabilities differ by model. The integration creates native selects for
+sleep level and temperature unit, a refresh button, and switches such as Eco and Beep
+only when the API reports the matching writable property. Horizontal swing is exposed
+only for models that report a horizontal-swing property.
+Opaque internal Q values and unreported power fields are intentionally not exposed.
 
 ### Zone Control
 
@@ -131,9 +139,12 @@ For multi-zone systems, individual zone switches are created:
 | Platform         | Description                   | Example Entities                   |
 |------------------|-------------------------------|------------------------------------|
 | **Climate**      | AC units, heat pumps          | `climate.living_room_ac`           |
-| **Sensor**       | Temperature, humidity, energy | `sensor.bedroom_temperature`       |
+| **Sensor**       | Temperature, humidity, energy, electrical values | `sensor.bedroom_temperature` |
+| **Binary Sensor**| Persistent diagnostic faults   | `binary_sensor.indoor_sensor_fault`|
 | **Switch**       | Zones, special functions      | `switch.turbo_mode`                |
 | **Number**       | Target values, settings       | `number.display_brightness`        |
+| **Select**       | Sleep level, temperature unit | `select.ac_sleep_level`            |
+| **Button**       | Device status refresh         | `button.ac_refresh_device_data`    |
 | **Humidifier**   | Dehumidifier control          | `humidifier.basement_dehumidifier` |
 | **Water Heater** | Hot water systems             | `water_heater.main_unit`           |
 

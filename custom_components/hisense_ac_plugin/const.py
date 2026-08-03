@@ -68,6 +68,8 @@ TOKEN_EXPIRY_MARGIN = 60  # seconds before token expiry to refresh
 
 # Update interval
 UPDATE_INTERVAL = 30  # seconds
+POWER_UPDATE_INTERVAL = 300  # seconds
+SELF_CHECK_UPDATE_INTERVAL = 3600  # seconds
 
 # Temperature settings
 MIN_TEMP = 16

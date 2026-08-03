@@ -40,8 +40,7 @@ class HisenseACPluginDataUpdateCoordinator(DataUpdateCoordinator):
     async def async_setup(self) -> bool:
         """Set up the coordinator."""
         try:
-            # Get initial device list
-            devices = await self.api_client.async_get_devices()
+            devices = await self._async_update_data()
             if not devices:
                 _LOGGER.error("No devices found during setup")
                 return False
@@ -59,9 +58,6 @@ class HisenseACPluginDataUpdateCoordinator(DataUpdateCoordinator):
             self._websocket.async_connect()
             self._websocket_connected = True
             _LOGGER.info("WebSocket background task scheduled")
-            
-            # Update initial device statuses
-            await self._async_update_data()
             
             return True
         except Exception as error:

@@ -70,9 +70,6 @@ async def async_setup_entry(
     coordinator: HisenseACPluginDataUpdateCoordinator = hass.data[DOMAIN][config_entry.entry_id]
 
     try:
-        # Trigger initial data update
-        await coordinator.async_config_entry_first_refresh()
-
         # Get devices from coordinator
         devices = coordinator.data
         _LOGGER.debug("Coordinator data after refresh: %s", devices)

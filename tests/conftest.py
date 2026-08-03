@@ -94,6 +94,7 @@ def _install_homeassistant_stubs() -> None:
         NUMBER = "number"
         SELECT = "select"
         BUTTON = "button"
+        BINARY_SENSOR = "binary_sensor"
         SENSOR = "sensor"
         HUMIDIFIER = "humidifier"
 
@@ -171,10 +172,23 @@ def _install_homeassistant_stubs() -> None:
 
     class EntityCategory:
         CONFIG = "config"
+        DIAGNOSTIC = "diagnostic"
 
     entity.DeviceInfo = DeviceInfo
     entity.EntityCategory = EntityCategory
     sys.modules["homeassistant.helpers.entity"] = entity
+
+    entity_registry = types.ModuleType("homeassistant.helpers.entity_registry")
+
+    class EntityRegistry:
+        def async_get_entity_id(self, domain, platform, unique_id):
+            return None
+
+        def async_remove(self, entity_id):
+            return None
+
+    entity_registry.async_get = lambda hass: EntityRegistry()
+    sys.modules["homeassistant.helpers.entity_registry"] = entity_registry
 
     entity_platform = types.ModuleType("homeassistant.helpers.entity_platform")
     entity_platform.AddEntitiesCallback = object
@@ -320,6 +334,18 @@ def _install_homeassistant_stubs() -> None:
     button.ButtonEntity = ButtonEntity
     sys.modules["homeassistant.components.button"] = button
 
+    binary_sensor = types.ModuleType("homeassistant.components.binary_sensor")
+
+    class BinarySensorEntity:
+        pass
+
+    class BinarySensorDeviceClass:
+        PROBLEM = "problem"
+
+    binary_sensor.BinarySensorEntity = BinarySensorEntity
+    binary_sensor.BinarySensorDeviceClass = BinarySensorDeviceClass
+    sys.modules["homeassistant.components.binary_sensor"] = binary_sensor
+
     climate = types.ModuleType("homeassistant.components.climate")
 
     class ClimateEntity:
@@ -365,6 +391,7 @@ def _install_homeassistant_stubs() -> None:
         ENERGY = "energy"
         POWER = "power"
         VOLTAGE = "voltage"
+        CURRENT = "current"
         HUMIDITY = "humidity"
         ENUM = "enum"
 
