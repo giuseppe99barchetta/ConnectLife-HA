@@ -267,11 +267,17 @@ def test_009_128_exposes_discovered_controls_and_measurements():
             for key in device.status | {"t_beep": "0", "f_power_display": "0"}
         }
     )
+    commands = []
+
+    async def async_control_device(**kwargs):
+        commands.append(kwargs)
+
     coordinator = SimpleNamespace(
         hass=hass,
         data={device.device_id: device},
         api_client=SimpleNamespace(parsers={device.device_id: parser}, static_data={}),
         get_device=lambda _device_id: device,
+        async_control_device=async_control_device,
     )
     hass.data[DOMAIN] = {entry.entry_id: coordinator}
     switches, numbers, selects, buttons, sensors, faults = [], [], [], [], [], []
@@ -281,6 +287,8 @@ def test_009_128_exposes_discovered_controls_and_measurements():
         await setup_number(hass, entry, numbers.extend)
         await setup_select(hass, entry, selects.extend)
         await setup_button(hass, entry, buttons.extend)
+        for button in buttons:
+            await button.async_press()
         await setup_binary_sensors(hass, entry, faults.extend)
         await sensor_module.async_setup_entry(hass, entry, sensors.extend)
 
@@ -289,7 +297,10 @@ def test_009_128_exposes_discovered_controls_and_measurements():
     assert {entity._switch_type for entity in switches} == {"eco_mode", "beep", "fahrenheit_display"}
     assert numbers == []
     assert {entity._attr_name for entity in selects} == {"Sleep Level", "Temperature Unit"}
-    assert len(buttons) == 1
+    assert {entity._button_type for entity in buttons} == {"refresh", "display_on", "display_off"}
+    assert {tuple(command["properties"].items())[0] for command in commands} == {
+        ("t_device_info", "1"), ("t_dimmer", "0"), ("t_dimmer", "1")
+    }
     assert len(faults) == 1
     assert faults[0].is_on is False
     device.status["f_e_intemp"] = "1"
@@ -330,6 +341,10 @@ def test_property_list_is_cached_per_model():
 def test_estimated_power_is_calibrated_from_cloud_energy():
     client = object.__new__(HisenseApiClient)
     client._power_estimates = {}
+    saved = []
+    client._power_estimates_store = SimpleNamespace(
+        async_delay_save=lambda data_func, delay: saved.append(data_func())
+    )
     device = build_device(
         status={
             "f_votage": "230",
@@ -354,6 +369,26 @@ def test_estimated_power_is_calibrated_from_cloud_energy():
     assert 0.8 < device.status["f_estimated_power_factor"] < 0.95
     assert device.status["f_estimated_power"] < 218
     assert device.status["f_estimated_power_confidence"] == 8
+    assert saved[-1][device.puid]["calibration_samples"] == 1
+
+
+def test_power_calibration_is_restored():
+    client = object.__new__(HisenseApiClient)
+    client._power_estimates = {}
+
+    class Store:
+        async def async_load(self):
+            return {"device-1": {"power_factor": 0.82, "calibration_samples": 5}}
+
+    client._power_estimates_store = Store()
+
+    asyncio.run(client.async_load_power_estimates())
+
+    assert client._power_estimates["device-1"] == {
+        "power_factor": 0.82,
+        "apparent_energy": 0.0,
+        "calibration_samples": 5,
+    }
 
 
 def test_async_unload_entry_calls_coordinator_cleanup():

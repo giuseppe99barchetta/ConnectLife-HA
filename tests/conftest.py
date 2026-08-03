@@ -214,6 +214,24 @@ def _install_homeassistant_stubs() -> None:
     aiohttp_client.async_get_clientsession = lambda hass: None
     sys.modules["homeassistant.helpers.aiohttp_client"] = aiohttp_client
 
+    storage = types.ModuleType("homeassistant.helpers.storage")
+
+    class Store:
+        def __init__(self, hass, version, key):
+            self.data = None
+
+        async def async_load(self):
+            return self.data
+
+        async def async_save(self, data):
+            self.data = data
+
+        def async_delay_save(self, data_func, delay=0):
+            self.data = data_func()
+
+    storage.Store = Store
+    sys.modules["homeassistant.helpers.storage"] = storage
+
     oauth2_flow = types.ModuleType("homeassistant.helpers.config_entry_oauth2_flow")
 
     class AbstractOAuth2FlowHandler:

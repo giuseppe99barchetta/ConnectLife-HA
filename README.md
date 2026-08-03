@@ -127,10 +127,13 @@ ConnectLife capabilities differ by model. The integration creates native selects
 sleep level and temperature unit, a refresh button, and switches such as Eco and Beep
 only when the API reports the matching writable property. Horizontal swing is exposed
 only for models that report a horizontal-swing property.
+For 009-128 units, separate Display On and Display Off buttons control the write-only
+LED display command; its state cannot be read back from ConnectLife.
 Opaque internal Q values and unreported power fields are intentionally not exposed.
 Estimated power uses voltage, current and a power factor learned from the cloud energy total;
 it is an estimate, not a substitute for a certified meter. Confidence reaches 100% after
-12 valid energy-calibration samples.
+12 valid energy-calibration samples. The learned factor and samples survive integration
+reloads and Home Assistant restarts.
 
 ### Zone Control
 
@@ -149,7 +152,7 @@ For multi-zone systems, individual zone switches are created:
 | **Switch**       | Zones, special functions      | `switch.turbo_mode`                |
 | **Number**       | Target values, settings       | `number.display_brightness`        |
 | **Select**       | Sleep level, temperature unit | `select.ac_sleep_level`            |
-| **Button**       | Device status refresh         | `button.ac_refresh_device_data`    |
+| **Button**       | Refresh and LED display commands | `button.ac_display_off`         |
 | **Humidifier**   | Dehumidifier control          | `humidifier.basement_dehumidifier` |
 | **Water Heater** | Hot water systems             | `water_heater.main_unit`           |
 

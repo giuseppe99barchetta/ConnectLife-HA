@@ -16,6 +16,7 @@ import hmac
 import aiohttp
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.storage import Store
 
 from .const import (
     API_BASE_URL,
@@ -30,6 +31,7 @@ from .const import (
     DEVICE_TYPES, DOMAIN, API_GET_HOUR_POWER, API_SELF_CHECK,
     POWER_UPDATE_INTERVAL, SELF_CHECK_UPDATE_INTERVAL,
     DEFAULT_POWER_FACTOR, MIN_CALIBRATED_POWER_FACTOR, POWER_ESTIMATE_TARGET_SAMPLES,
+    POWER_ESTIMATE_STORAGE_KEY,
 )
 from .devices.base import DeviceAttribute
 from .oauth2 import OAuth2Session
@@ -59,7 +61,8 @@ class HisenseApiClient:
         self.static_data: dict[str, Any] = {}
         self._property_lists: dict[tuple[str, str], list[dict[str, Any]]] = {}
         self._power_cache: dict[str, tuple[str, float, float | None]] = {}
-        self._power_estimates: dict[str, dict[str, float]] = {}
+        self._power_estimates: dict[str, dict[str, float | int]] = {}
+        self._power_estimates_store = Store(hass, 1, POWER_ESTIMATE_STORAGE_KEY)
         self._self_check_updated: dict[str, float] = {}
         self._status_callbacks: dict[str, Callable[[dict[str, Any]], None]] = {}
         self._websocket: HisenseWebSocket | None = None
@@ -591,6 +594,7 @@ class HisenseApiClient:
             device.status.get("f_power_consumption")
         )
         previous_energy_kwh = state.get("energy_kwh")
+        calibrated = False
         if energy_kwh is not None and previous_energy_kwh is not None:
             energy_delta_wh = (energy_kwh - previous_energy_kwh) * 1000
             apparent_energy = state["apparent_energy"]
@@ -601,6 +605,7 @@ class HisenseApiClient:
                         state["power_factor"] * 0.75 + measured_power_factor * 0.25
                     )
                     state["calibration_samples"] += 1
+                    calibrated = True
                 state["apparent_energy"] = 0.0
             elif energy_delta_wh < 0:
                 state["apparent_energy"] = 0.0
@@ -609,13 +614,48 @@ class HisenseApiClient:
 
         state["time"] = now
         state["apparent_power"] = apparent_power
-        # ponytail: calibration resets on reload; persist only if reloads prevent convergence.
+        if calibrated:
+            self._power_estimates_store.async_delay_save(
+                self._power_estimates_to_store, 30
+            )
         device.status["f_estimated_power"] = round(apparent_power * state["power_factor"])
         device.status["f_estimated_power_factor"] = round(state["power_factor"], 3)
         device.status["f_estimated_power_confidence"] = round(
             min(state["calibration_samples"] / POWER_ESTIMATE_TARGET_SAMPLES, 1) * 100
         )
         device.status["f_estimated_power_samples"] = state["calibration_samples"]
+
+    def _power_estimates_to_store(self) -> dict[str, dict[str, float | int]]:
+        """Return the learned calibration, excluding transient readings."""
+        return {
+            puid: {
+                "power_factor": state["power_factor"],
+                "calibration_samples": state["calibration_samples"],
+            }
+            for puid, state in self._power_estimates.items()
+            if state["calibration_samples"]
+        }
+
+    async def async_load_power_estimates(self) -> None:
+        """Restore learned power factors before the first device update."""
+        saved = await self._power_estimates_store.async_load()
+        if not isinstance(saved, dict):
+            return
+        for puid, state in saved.items():
+            if not isinstance(puid, str) or not isinstance(state, dict):
+                continue
+            try:
+                power_factor = float(state["power_factor"])
+                calibration_samples = int(state["calibration_samples"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if not MIN_CALIBRATED_POWER_FACTOR <= power_factor <= 1 or calibration_samples < 1:
+                continue
+            self._power_estimates[puid] = {
+                "power_factor": power_factor,
+                "apparent_energy": 0.0,
+                "calibration_samples": calibration_samples,
+            }
 
     async def async_get_devices(self) -> dict[str, DeviceInfo]:
         """Get list of devices with their current status."""
@@ -1035,6 +1075,7 @@ class HisenseApiClient:
 
     async def async_cleanup(self) -> None:
         """Clean up resources."""
+        await self._power_estimates_store.async_save(self._power_estimates_to_store())
         if self._websocket is not None:
             await self._websocket.async_disconnect()
             self._websocket = None

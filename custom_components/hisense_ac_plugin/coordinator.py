@@ -40,6 +40,7 @@ class HisenseACPluginDataUpdateCoordinator(DataUpdateCoordinator):
     async def async_setup(self) -> bool:
         """Set up the coordinator."""
         try:
+            await self.api_client.async_load_power_estimates()
             devices = await self._async_update_data()
             if not devices:
                 _LOGGER.error("No devices found during setup")

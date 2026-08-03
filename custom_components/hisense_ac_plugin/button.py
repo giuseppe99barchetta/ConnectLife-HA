@@ -18,7 +18,7 @@ async def async_setup_entry(
     config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up refresh buttons for supported devices."""
+    """Set up command buttons for supported devices."""
     coordinator: HisenseACPluginDataUpdateCoordinator = hass.data[DOMAIN][config_entry.entry_id]
     entities = []
     for device in coordinator.data.values():
@@ -26,22 +26,35 @@ async def async_setup_entry(
             continue
         parser = coordinator.api_client.parsers.get(device.device_id)
         if device.has_attribute("t_device_info", parser):
-            entities.append(HisenseRefreshButton(coordinator, device))
+            entities.append(HisenseButton(coordinator, device, "refresh"))
+        if device.type_code == "009" and device.feature_code == "128":
+            entities.extend(
+                HisenseButton(coordinator, device, button_type)
+                for button_type in ("display_on", "display_off")
+            )
     if entities:
         async_add_entities(entities)
 
 
-class HisenseRefreshButton(CoordinatorEntity, ButtonEntity):
-    """Request a device-side status refresh."""
+class HisenseButton(CoordinatorEntity, ButtonEntity):
+    """Send a one-shot command to a Hisense device."""
 
     _attr_has_entity_name = True
-    _attr_name = "Refresh Device Data"
-    _attr_icon = "mdi:refresh"
+    _BUTTONS = {
+        "refresh": ("Refresh Device Data", "mdi:refresh", {"t_device_info": "1"}),
+        "display_on": ("Display On", "mdi:led-on", {"t_dimmer": "0"}),
+        "display_off": ("Display Off", "mdi:led-off", {"t_dimmer": "1"}),
+    }
 
-    def __init__(self, coordinator, device) -> None:
+    def __init__(self, coordinator, device, button_type: str) -> None:
         super().__init__(coordinator)
+        name, icon, properties = self._BUTTONS[button_type]
         self._device_id = device.puid
-        self._attr_unique_id = f"{device.device_id}_refresh_device_data"
+        self._properties = properties
+        self._button_type = button_type
+        self._attr_name = name
+        self._attr_icon = icon
+        self._attr_unique_id = f"{device.device_id}_{button_type}"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, device.device_id)}, name=device.name,
             manufacturer="Hisense", model=f"{device.type_name} ({device.feature_name})",
@@ -57,5 +70,5 @@ class HisenseRefreshButton(CoordinatorEntity, ButtonEntity):
 
     async def async_press(self) -> None:
         await self.coordinator.async_control_device(
-            puid=self._device_id, properties={"t_device_info": "1"}
+            puid=self._device_id, properties=self._properties
         )
