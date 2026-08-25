@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
 import json
 import re
 import time
@@ -142,7 +141,7 @@ def test_websocket_status_recalculates_estimated_power():
     )
 
     assert coordinator._devices["dev1"].status["f_estimated_power"] == 332
-    assert isinstance(coordinator._devices["dev1"].status["f_last_connectlife_update"], datetime)
+    assert "f_last_connectlife_update" not in coordinator._devices["dev1"].status
 
 
 def test_water_heater_uses_normalized_mode_for_temperature_range():
@@ -287,7 +286,6 @@ def test_009_128_exposes_discovered_controls_and_measurements():
             "t_device_info": "0",
             "f_votage": "228",
             "f_electricity": "2310",
-            "f_last_connectlife_update": "2026-08-03T18:00:00+00:00",
             "f_e_intemp": "0",
         },
     )
@@ -341,8 +339,6 @@ def test_009_128_exposes_discovered_controls_and_measurements():
         ("t_device_info", "1"), ("t_dimmer", "0"), ("t_dimmer", "1")
     }
     assert len(faults) == 2
-    last_update = next(entity for entity in sensors if entity._sensor_type == "last_connectlife_update")
-    assert isinstance(last_update.native_value, datetime)
     electrical_data = next(entity for entity in faults if entity._attr_name == "Electrical Data Available")
     fault = next(entity for entity in faults if entity._attr_name != "Electrical Data Available")
     assert electrical_data.is_on is True
@@ -352,7 +348,7 @@ def test_009_128_exposes_discovered_controls_and_measurements():
     device.status["f_e_intemp"] = "0"
     assert fault.is_on is False
     assert {entity._sensor_type for entity in sensors} == {
-        "voltage", "electrical_value", "last_connectlife_update",
+        "voltage", "electrical_value",
     }
     current = next(entity for entity in sensors if entity._sensor_type == "electrical_value")
     assert current._attr_name == "Current"

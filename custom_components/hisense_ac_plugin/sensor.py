@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 from typing import Any, Callable
 
 from homeassistant.components.sensor import (
@@ -80,16 +79,6 @@ SENSOR_TYPES = {
         "state_class": SensorStateClass.MEASUREMENT,
         "unit": "%",
         "description": "Confidence based on valid cloud-energy calibration samples"
-    },
-    "last_connectlife_update": {
-        "key": "f_last_connectlife_update",
-        "name": "Last ConnectLife Update",
-        "icon": "mdi:cloud-clock",
-        "device_class": SensorDeviceClass.TIMESTAMP,
-        "state_class": None,
-        "unit": None,
-        "entity_category": EntityCategory.DIAGNOSTIC,
-        "description": "Last status received from ConnectLife"
     },
     # "indoor_temperature": {
     #     "key": StatusKey.TEMPERATURE,
@@ -728,6 +717,7 @@ RETIRED_SENSOR_TYPES = {
     "cooling_qvalue",
     "heating_qvalue",
     "energy_calculation_method",
+    "last_connectlife_update",
 }
 SENSOR_TYPES = {
     sensor_type: sensor_info
@@ -875,7 +865,7 @@ class HisenseSensor(CoordinatorEntity, SensorEntity):
             return False
         if self._sensor_type in {
             "power_consumption", "voltage", "electrical_value", "power_display", "estimated_power",
-            "estimated_power_confidence", "last_connectlife_update",
+            "estimated_power_confidence",
         }:
             return True
         current_mode = self._device.get_status_value(StatusKey.MODE)  # 使用正确键名
@@ -891,7 +881,7 @@ class HisenseSensor(CoordinatorEntity, SensorEntity):
         return True
 
     @property
-    def native_value(self) -> float | str | datetime | None:
+    def native_value(self) -> float | str | None:
         """Return the sensor value."""
         if not self._device:
             return None
@@ -900,8 +890,6 @@ class HisenseSensor(CoordinatorEntity, SensorEntity):
             return None
             
         try:
-            if self._attr_device_class == SensorDeviceClass.TIMESTAMP:
-                return datetime.fromisoformat(value) if isinstance(value, str) else value
             # Convert to float for numeric sensors
             if self._attr_device_class in [
                 SensorDeviceClass.TEMPERATURE,

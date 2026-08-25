@@ -9,7 +9,7 @@ import hashlib
 import base64
 from typing import Any, Dict, List, Callable
 import zoneinfo
-from datetime import datetime, timezone
+from datetime import datetime
 import pytz
 import re
 import hmac
@@ -683,7 +683,6 @@ class HisenseApiClient:
                 deviceFeatureName = device_data.get("deviceFeatureName")
                 try:
                     device = DeviceInfo(device_data)
-                    device.status["f_last_connectlife_update"] = datetime.now(timezone.utc)
                     supported_device_types = ["009", "008", "007", "006", "016", "035"]
                     if deviceTypeCode in supported_device_types:
                         devices[device.device_id] = device
