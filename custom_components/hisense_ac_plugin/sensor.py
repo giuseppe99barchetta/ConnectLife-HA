@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from typing import Any, Callable
 
 from homeassistant.components.sensor import (
@@ -890,7 +891,7 @@ class HisenseSensor(CoordinatorEntity, SensorEntity):
         return True
 
     @property
-    def native_value(self) -> float | str | None:
+    def native_value(self) -> float | str | datetime | None:
         """Return the sensor value."""
         if not self._device:
             return None
@@ -899,6 +900,8 @@ class HisenseSensor(CoordinatorEntity, SensorEntity):
             return None
             
         try:
+            if self._attr_device_class == SensorDeviceClass.TIMESTAMP:
+                return datetime.fromisoformat(value) if isinstance(value, str) else value
             # Convert to float for numeric sensors
             if self._attr_device_class in [
                 SensorDeviceClass.TEMPERATURE,

@@ -250,7 +250,7 @@ class HisenseACPluginDataUpdateCoordinator(DataUpdateCoordinator):
                     
                     # Update device in coordinator
                     updated_device = DeviceInfo(device_data)
-                    updated_device.status["f_last_connectlife_update"] = datetime.now(timezone.utc).isoformat()
+                    updated_device.status["f_last_connectlife_update"] = datetime.now(timezone.utc)
                     if msg_type == "status_devicestatus":
                         self.api_client.update_estimated_power(updated_device)
                     self._devices[device_key] = updated_device

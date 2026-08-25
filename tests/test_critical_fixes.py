@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime
 import json
 import re
 import time
@@ -141,7 +142,7 @@ def test_websocket_status_recalculates_estimated_power():
     )
 
     assert coordinator._devices["dev1"].status["f_estimated_power"] == 332
-    assert "f_last_connectlife_update" in coordinator._devices["dev1"].status
+    assert isinstance(coordinator._devices["dev1"].status["f_last_connectlife_update"], datetime)
 
 
 def test_water_heater_uses_normalized_mode_for_temperature_range():
@@ -340,6 +341,8 @@ def test_009_128_exposes_discovered_controls_and_measurements():
         ("t_device_info", "1"), ("t_dimmer", "0"), ("t_dimmer", "1")
     }
     assert len(faults) == 2
+    last_update = next(entity for entity in sensors if entity._sensor_type == "last_connectlife_update")
+    assert isinstance(last_update.native_value, datetime)
     electrical_data = next(entity for entity in faults if entity._attr_name == "Electrical Data Available")
     fault = next(entity for entity in faults if entity._attr_name != "Electrical Data Available")
     assert electrical_data.is_on is True
