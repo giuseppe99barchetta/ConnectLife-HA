@@ -132,3 +132,21 @@ The next REA run should avoid unscoped `search_in=code` over all 27k classes. Th
 5. specifically verify whether temperature/humidity fields are updated while powered off and in DRY, rather than inferring that behavior from the current HA implementation.
 
 No Home Assistant production state, deployment, secrets or integration source files were changed during this audit.
+
+## Correlation with authentic HA capture (12 October 2026)
+
+The first native diagnostic download from HA supplies new device-side evidence,
+not additional APK decompilation evidence: three online devices of type `009`
+and feature `128`, all reporting `f_temp_in` when powered off. There is no
+`f_humidity` or `f_power_display` in any of their cached status dictionaries.
+The `f_e_inhumidity` field is a fault flag, not relative humidity. The raw
+`f_votage=1` has unknown scale; treating it as an electrical volt reading is
+unsupported. The one `t_work_mode=3` example also has `t_power=0`, so it is
+not a running DRY sample. See `API_ENTITY_MAPPING.md` for the value table.
+
+**Unresolved APK-side work:** a targeted app-owned class caller/xref chain has
+not yet established any new REST endpoint or extra property for `009/128`.
+The existing whole-APK scan failures must not be interpreted as negative
+evidence. No additional sensors or controls should be introduced from
+unverified APK strings. This remains an explicit limit, not a completed
+endpoint reverse-engineering result.
