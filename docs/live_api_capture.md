@@ -82,3 +82,17 @@ ambiguous vendor scaling and locally estimated power must be called out
 separately. The capture timestamp identifies export time, **never** the
 measurement time of every property. Compare raw values with successive
 downloads and HA recorder history before classifying one as stale.
+
+An offline, read-only comparison helper is available at
+`tools/compare_diagnostics.py`:
+
+```powershell
+py -3 tools/compare_diagnostics.py old-diagnostic.json new-diagnostic.json
+```
+
+It compares counts, observed fields, online/powered-on counts, running modes,
+and REST/WS evidence by device type/feature. **Device aliases are newly salted
+for every export**, so the tool deliberately does not pretend to correlate
+individual units across snapshots. Comparisons inside one 009/128 group are
+aggregated, not proof of a particular unit's changing temperature. Run it on
+trusted local JSON only; it does not contact HA or ConnectLife.
