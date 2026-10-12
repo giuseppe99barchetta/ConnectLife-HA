@@ -185,7 +185,7 @@ class HisenseACPluginDataUpdateCoordinator(DataUpdateCoordinator):
         import json
         import base64
 
-        _LOGGER.debug("Starting to handle websocket message: %s", message)
+        # Never log raw push payloads: they may contain device IDs or tokens.
         try:
             msg_type = message.get("msgTypeCode")
             _LOGGER.debug("Message type: %s", msg_type)
@@ -194,20 +194,16 @@ class HisenseACPluginDataUpdateCoordinator(DataUpdateCoordinator):
 
             # Parse content field which is a JSON string
             content = message.get("content", "{}")
-            _LOGGER.debug("Raw content: %s", content)
             if not isinstance(content, str):
                 _LOGGER.warning("Content is not a string: %s", type(content))
                 return
 
             try:
                 content_data = json.loads(content)
-                _LOGGER.debug("Parsed message content: %s", content_data)
                 
 
                 device_id = content_data.get("puid")
                 
-                _LOGGER.debug("Processing message for device: %s", device_id)
-                _LOGGER.debug("Available devices: %s", [f"{d.device_id} (puid: {d.puid}, type: {d.type_code}-{d.feature_code})" for d in self._devices.values()])
                 
                 device_key = self._puid_to_device_id.get(device_id)
                 device = self._devices.get(device_key) if device_key else None
@@ -220,9 +216,7 @@ class HisenseACPluginDataUpdateCoordinator(DataUpdateCoordinator):
                         "status_keys": sorted(content_data.get("properties", {}).keys())
                         if isinstance(content_data.get("properties"), dict) else [],
                     })
-                    _LOGGER.debug("Found device %s in devices list", device_id)
                     device_data = device.to_dict()
-                    _LOGGER.debug("Current device data: %s", device_data)
                     
                     # Update device data based on message type
                     if msg_type == "status_wifistatus":
@@ -248,7 +242,6 @@ class HisenseACPluginDataUpdateCoordinator(DataUpdateCoordinator):
                             try:
                                 decoded_status = base64.b64decode(status).decode('utf-8')
                                 status_json = json.loads(decoded_status)
-                                _LOGGER.debug("Decoded status: %s", status_json)
                                 if status_json and isinstance(status_json, dict):
                                     # Update device status with decoded values
                                     for key, value in status_json.items():
@@ -260,7 +253,6 @@ class HisenseACPluginDataUpdateCoordinator(DataUpdateCoordinator):
                         if properties and isinstance(properties, dict):
                             for key, value in properties.items():
                                 device_data["statusList"][key] = value
-                            _LOGGER.debug("Updated device status with properties: %s", properties)
                     
                     # Update device in coordinator
                     updated_device = DeviceInfo(device_data)
