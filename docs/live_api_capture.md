@@ -63,3 +63,22 @@ claiming a particular firmware refreshes room humidity while powered off.
 
 For the API→entity baseline see `API_ENTITY_MAPPING.md`; REA/JADX findings and
 limitations are in `docs/rea_connectlife_audit.md`.
+
+## Real first download and accuracy lessons (2026-10-12)
+
+The user supplied an authentic Home Assistant diagnostics JSON. It contained
+three online type `009` / feature `128` units and a successful REST refresh
+about 15 seconds before the download. All three were powered OFF. One still
+had `t_work_mode=3`: this is a retained DRY selection and **not** evidence
+of an actively running dehumidification cycle. Temperatures `f_temp_in`
+were present (25, 27, 24) but humidity `f_humidity` and live power
+`f_power_display` were absent. The `f_e_inhumidity=0` values refer to sensor
+fault flags rather than relative-humidity measurements. `f_votage=1` must
+not be shown as a verified 1 V supply-voltage reading. The first download
+contained no captured push events, which does not establish WS failure.
+
+For newer diagnostics, `status_units` includes only observed status keys;
+ambiguous vendor scaling and locally estimated power must be called out
+separately. The capture timestamp identifies export time, **never** the
+measurement time of every property. Compare raw values with successive
+downloads and HA recorder history before classifying one as stale.

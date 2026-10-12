@@ -48,12 +48,11 @@ class HisenseWebSocket:
     async def _generate_phone_code(self) -> str:
         """Generate a phone code (UUID)."""
         phone_code = str(uuid.uuid4())
-        _LOGGER.debug("Generated new phone code: %s", phone_code)
         return phone_code
 
     async def _register_phone_code(self, phone_code: str) -> bool:
         """Register phone code with the server."""
-        _LOGGER.debug("Registering phone code: %s", phone_code)
+        _LOGGER.debug("Registering notification device")
         try:
             response = await self.api_client._api_request(
                 "POST",
@@ -69,7 +68,7 @@ class HisenseWebSocket:
 
     async def _get_notification_info(self, phone_code: str) -> Optional[NotificationInfo]:
         """Get notification server information."""
-        _LOGGER.debug("Fetching notification info for phone code: %s", phone_code)
+        _LOGGER.debug("Fetching notification channel information")
         try:
             response = await self.api_client._api_request(
                 "GET",
@@ -102,7 +101,7 @@ class HisenseWebSocket:
             _LOGGER.error("No push channel available")
             return False
 
-        _LOGGER.debug("Attempting WebSocket connection - Channel: %s", channel)
+        _LOGGER.debug("Attempting WebSocket notification connection")
 
         try:
             # Get fresh token before connection
@@ -153,12 +152,10 @@ class HisenseWebSocket:
                     # Throttling here silently discards valid state updates.
                     self._last_message_time = time.time()
 
-                    _LOGGER.debug("Received raw WebSocket message: %s", msg.data)
                     try:
                         # Decode base64 and then UTF-8
                         base64_decoded = base64.b64decode(msg.data)
                         decoded_content = base64_decoded.decode('utf-8')
-                        _LOGGER.debug("Decoded message content: %s", decoded_content)
                         
                         data = json.loads(decoded_content)
                         self.message_callback(data)
@@ -190,7 +187,6 @@ class HisenseWebSocket:
         while not self._closing:
             try:
                 self._phone_code = await self._generate_phone_code()
-                _LOGGER.debug("Generated phone code: %s", self._phone_code)
 
                 registered = await asyncio.wait_for(
                     self._register_phone_code(self._phone_code),
