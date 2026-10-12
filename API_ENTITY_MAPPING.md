@@ -32,3 +32,19 @@ This is a **code-level** inventory, not a capture from a physical unit. Parser d
 - Additional API strings found in an Android application must be correlated with a reachable endpoint, relevant device feature code and an authentic payload before new HA entities are justified.
 
 No production Home Assistant instance was changed or restarted during this audit.
+
+## Read-only authenticated diagnostics added 2026-10-12
+
+`custom_components/hisense_ac_plugin/diagnostics.py` implements the standard
+Home Assistant `async_get_config_entry_diagnostics` hook. This accesses the
+existing in-memory coordinator/OAuth session without exporting the token.
+Default capture does not make network calls; its status and capability data
+are **real HA cached API data only when the new integration version is loaded**.
+No such live dump was available through the current @HAS connector. The
+optional hourly energy and self-check calls require explicit opt-in and remain
+read-only. See `docs/live_api_capture.md` for precise capture instructions.
+
+Coordinator timestamps distinguish the last REST refresh and last processed
+WebSocket event, but do not claim individual status properties were updated
+at either time. A bounded event log stores only notification type, field
+names and time, without raw messages or device identifiers.
