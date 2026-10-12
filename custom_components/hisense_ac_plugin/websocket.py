@@ -116,7 +116,8 @@ class HisenseWebSocket:
                 f"{self._notification_info.push_server_ssl_port}/ws/{channel}"
                 f"?phoneCode={self._phone_code}&token={access_token}"
             )
-            _LOGGER.debug("WebSocket URL: %s", ws_url)
+            # The URL embeds an OAuth bearer token: never log it.
+            _LOGGER.debug("Connecting to WebSocket notification server")
 
             self._ws = await asyncio.wait_for(
                 self.session.ws_connect(
@@ -148,11 +149,9 @@ class HisenseWebSocket:
             _LOGGER.debug("Starting WebSocket message listener")
             async for msg in self._ws:
                 if msg.type == aiohttp.WSMsgType.TEXT:
-                    current_time = time.time()
-                    if current_time - self._last_message_time < 1:
-                        _LOGGER.debug("Skipping message due to rate limit")
-                        continue
-                    self._last_message_time = current_time  # Update last processed message time.
+                    # Every notification can carry a distinct device change.
+                    # Throttling here silently discards valid state updates.
+                    self._last_message_time = time.time()
 
                     _LOGGER.debug("Received raw WebSocket message: %s", msg.data)
                     try:

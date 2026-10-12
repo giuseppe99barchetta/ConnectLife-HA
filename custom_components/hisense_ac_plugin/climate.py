@@ -492,7 +492,9 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
         if not self._device:
             return None
         temp = self._device.get_status_value(StatusKey.TEMPERATURE)
-        return float(temp) if temp else None
+        if temp is None:
+            temp = self._device.get_status_value("t_temp_in")
+        return float(temp) if temp is not None else None
 
     @property
     def target_temperature(self) -> float | None:

@@ -530,6 +530,98 @@ def test_sensor_metadata_uses_english_fallback_strings():
         assert not _contains_chinese(sensor_info["description"]), sensor_type
 
 
+def test_environment_sensors_remain_available_in_dry_mode_and_without_static_flag(monkeypatch):
+    monkeypatch.setattr(
+        sensor_module.CoordinatorEntity,
+        "available",
+        property(lambda self: True),
+        raising=False,
+    )
+    hass = DummyHass()
+    entry = SimpleNamespace(entry_id="entry-1")
+    device = build_device(
+        type_code="009",
+        feature_code="128",
+        status={
+            StatusKey.POWER: "1",
+            StatusKey.MODE: "3",
+            StatusKey.TEMPERATURE: "22.5",
+            StatusKey.FHUMIDITY: "67",
+        },
+    )
+    parser = SimpleNamespace(
+        attributes={
+            StatusKey.MODE: SimpleNamespace(),
+            StatusKey.TEMPERATURE: SimpleNamespace(),
+            StatusKey.FHUMIDITY: SimpleNamespace(),
+        }
+    )
+    coordinator = SimpleNamespace(
+        hass=hass,
+        data={device.device_id: device},
+        api_client=SimpleNamespace(parsers={device.device_id: parser}, static_data={device.device_id: {}}),
+        get_device=lambda _device_id: device,
+    )
+    hass.data[DOMAIN] = {entry.entry_id: coordinator}
+    added = []
+
+    asyncio.run(sensor_module.async_setup_entry(hass, entry, added.extend))
+
+    environment = {
+        entity._sensor_type: entity
+        for entity in added
+        if entity._sensor_type in {"indoor_temperature", "indoor_humidity"}
+    }
+    assert set(environment) == {"indoor_temperature", "indoor_humidity"}
+    assert environment["indoor_temperature"].available is True
+    assert environment["indoor_temperature"].native_value == 22.5
+    assert environment["indoor_humidity"].available is True
+    assert environment["indoor_humidity"].native_value == 67.0
+
+
+def test_indoor_temperature_sensor_and_climate_accept_legacy_t_temp_in_alias(monkeypatch):
+    monkeypatch.setattr(
+        sensor_module.CoordinatorEntity,
+        "available",
+        property(lambda self: True),
+        raising=False,
+    )
+    hass = DummyHass()
+    entry = SimpleNamespace(entry_id="entry-1")
+    device = build_device(
+        type_code="009",
+        feature_code="199",
+        status={
+            StatusKey.POWER: "0",
+            StatusKey.MODE: "3",
+            "t_temp_in": "21.0",
+        },
+    )
+    parser = SimpleNamespace(
+        attributes={
+            StatusKey.MODE: SimpleNamespace(value_map={"3": "除湿"}),
+            "t_temp_in": SimpleNamespace(),
+        }
+    )
+    coordinator = SimpleNamespace(
+        hass=hass,
+        data={device.device_id: device},
+        api_client=SimpleNamespace(parsers={device.device_id: parser}, static_data={}),
+        get_device=lambda _device_id: device,
+    )
+    hass.data[DOMAIN] = {entry.entry_id: coordinator}
+    added = []
+
+    asyncio.run(sensor_module.async_setup_entry(hass, entry, added.extend))
+
+    temperature = next(entity for entity in added if entity._sensor_type == "indoor_temperature")
+    assert temperature.available is True
+    assert temperature.native_value == 21.0
+
+    climate = HisenseClimate(coordinator, device)
+    assert climate.current_temperature == 21.0
+
+
 def test_switch_metadata_uses_english_fallback_strings_for_dehumidifier_fan_speed():
     hass = DummyHass()
     entry = SimpleNamespace(entry_id="entry-1")

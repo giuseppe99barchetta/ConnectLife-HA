@@ -80,15 +80,16 @@ SENSOR_TYPES = {
         "unit": "%",
         "description": "Confidence based on valid cloud-energy calibration samples"
     },
-    # "indoor_temperature": {
-    #     "key": StatusKey.TEMPERATURE,
-    #     "name": "Indoor Temperature",
-    #     "icon": "mdi:thermometer",
-    #     "device_class": SensorDeviceClass.TEMPERATURE,
-    #     "state_class": SensorStateClass.MEASUREMENT,
-    #     "unit": UnitOfTemperature.CELSIUS,
-    #     "description": "Current indoor temperature"
-    # },
+    "indoor_temperature": {
+        "key": StatusKey.TEMPERATURE,
+        "fallback_keys": ("t_temp_in",),
+        "name": "Indoor Temperature",
+        "icon": "mdi:thermometer",
+        "device_class": SensorDeviceClass.TEMPERATURE,
+        "state_class": SensorStateClass.MEASUREMENT,
+        "unit": UnitOfTemperature.CELSIUS,
+        "description": "Current indoor temperature"
+    },
     "power_consumption": {
         "key": StatusKey.CONSUMPTION,  # 使用设备特定的键名
         "name": "Power Consumption",
@@ -768,7 +769,8 @@ async def async_setup_entry(
                 for sensor_type, sensor_info in SENSOR_TYPES.items():
                     # Check if the device supports this attribute
                     parser = coordinator.api_client.parsers.get(device.device_id)
-                    if device.has_attribute(sensor_info["key"],parser):
+                    sensor_keys = (sensor_info["key"], *sensor_info.get("fallback_keys", ()))
+                    if any(device.has_attribute(key, parser) for key in sensor_keys):
                         if sensor_info.get("requires_status") and sensor_info["key"] not in device.status:
                             continue
                         if device.status.get("f_zone2_select") == "0" and sensor_type == "f_zone2water_temp2":
@@ -782,7 +784,7 @@ async def async_setup_entry(
                         _LOGGER.info("获取到静态数据: %s: %s", device.feature_code, static_data)
                         if static_data is not None:
                             hasHumidity = static_data.get("f_humidity")
-                            if sensor_info["key"] == StatusKey.FHUMIDITY and hasHumidity != "1":
+                            if sensor_info["key"] == StatusKey.FHUMIDITY and hasHumidity == "0":
                                 continue
 
                         entity = HisenseSensor(
@@ -827,6 +829,7 @@ class HisenseSensor(CoordinatorEntity, SensorEntity):
         self._device_id = device.device_id
         self._sensor_type = sensor_type
         self._sensor_key = sensor_info["key"]
+        self._fallback_keys = sensor_info.get("fallback_keys", ())
         self._sensor_info = sensor_info
         self._attr_unique_id = f"{device.device_id}_{sensor_type}"
         self._attr_name = sensor_info["name"]
@@ -868,12 +871,8 @@ class HisenseSensor(CoordinatorEntity, SensorEntity):
             "estimated_power_confidence",
         }:
             return True
-        current_mode = self._device.get_status_value(StatusKey.MODE)  # 使用正确键名
-        # 判断自动模式
-        if current_mode in ["3"]:
-            _LOGGER.debug("设备处于自动模式，温度控制不可用")
-            return False
         if self._sensor_type == "f_zone2water_temp2":
+            current_mode = self._device.get_status_value(StatusKey.MODE)
             allowed_modes = {"0", "6"}  # 仅允许制热和制热+制热水模式
             if current_mode not in allowed_modes:
                 return False
@@ -887,6 +886,11 @@ class HisenseSensor(CoordinatorEntity, SensorEntity):
             return None
         value = self._device.get_status_value(self._sensor_key)
         if value is None:
+            for fallback_key in self._fallback_keys:
+                value = self._device.get_status_value(fallback_key)
+                if value is not None:
+                    break
+        if value is None:
             return None
             
         try:
@@ -897,6 +901,7 @@ class HisenseSensor(CoordinatorEntity, SensorEntity):
                 SensorDeviceClass.VOLTAGE,
                 SensorDeviceClass.CURRENT,
                 SensorDeviceClass.POWER,
+                SensorDeviceClass.HUMIDITY,
             ]:
                 return float(value)
             return value

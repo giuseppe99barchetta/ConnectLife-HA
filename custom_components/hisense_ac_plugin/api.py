@@ -419,7 +419,6 @@ class HisenseApiClient:
                 app_secret,
                 params,
             )
-            _LOGGER.debug(f'sign: {sign}')
             # Prepare headers
             headers.update({
                 f'{header_key}': f'{app_id}',
@@ -433,10 +432,7 @@ class HisenseApiClient:
             _LOGGER.debug("Request details:")
             _LOGGER.debug("URL: %s", url)
             _LOGGER.debug("Method: %s", method)
-            _LOGGER.debug("Headers: %s", {
-                k: v if k.lower() != "accesstoken" else "***"
-                for k, v in headers.items()
-            })
+            _LOGGER.debug("Request header names: %s", sorted(headers))
             if request_data:
                 _LOGGER.debug("Body: %s", json.dumps(request_data, indent=2))
             
@@ -454,8 +450,8 @@ class HisenseApiClient:
                 # Log response details
                 _LOGGER.debug("Response details:")
                 _LOGGER.debug("Status: %d", resp.status)
-                _LOGGER.debug("Headers: %s", dict(resp.headers))
-                _LOGGER.debug("Body: %s", response_text)
+                # Cloud responses may contain identifiers or credentials.
+                _LOGGER.debug("Response body length: %d bytes", len(response_text))
                 
                 # if resp.status == 401:
                 #     _LOGGER.warning("Token expired, refreshing...")
@@ -696,11 +692,11 @@ class HisenseApiClient:
                             deviceTypeCode, deviceFeatureCode
                         )
 
-                        if "99" in deviceFeatureCode and device.device_id not in self.static_data:
+                        if "99" in (deviceFeatureCode or "") and device.device_id not in self.static_data:
                             re = await self.async_query_static_data(device.puid)
                             _LOGGER.debug("Static data for re %s: %s", deviceFeatureCode,
                                           re)
-                            self.static_data[device.device_id] = re.get("status")
+                            self.static_data[device.device_id] = (re or {}).get("status") or {}
                         _LOGGER.debug("Static data for propertyList %s: %s", deviceFeatureCode,
                                       propertyList)
 
@@ -738,15 +734,17 @@ class HisenseApiClient:
                         elif isinstance(parser, Split006299Parser):
                             self.parsers[device.device_id] = parser
                         else:
-                            _LOGGER.error("Parser is not an instance of BaseBeanParser")
-                            return
+                            _LOGGER.warning("Unsupported parser for device %s; skipping device", device.device_id)
+                            devices.pop(device.device_id, None)
+                            self._devices.pop(device.device_id, None)
+                            continue
 
 
                         # Detect whether device exposes power-consumption data.
                         has_power = False
                         property_keys = {prop.get('propertyKey') for prop in propertyList if 'propertyKey' in prop}
                         if deviceTypeCode == "009":  # Split AC
-                            if "99" not in deviceFeatureCode:
+                            if "99" not in (deviceFeatureCode or ""):
                                 # _LOGGER.debug("009Ddevice feature code is :%s,and status = :%s", deviceFeatureCode,
                                 #               property_keys)
                                 target_keys = {'f_power_display', 'f_cool_qvalue', 'f_heat_qvalue'}
@@ -754,28 +752,29 @@ class HisenseApiClient:
                                     has_power = True
                             else:
                                 # _LOGGER.debug("009Ddevice feature code is :%s,and static_data = :%s",deviceFeatureCode,self.static_data[device.device_id])
-                                if self.static_data[device.device_id].get("Power_function") == "1" or self.static_data.get("f_cool_or_heat_qvalue") == "1":
+                                static = self.static_data.get(device.device_id) or {}
+                                if static.get("Power_function") == "1" or static.get("f_cool_or_heat_qvalue") == "1":
                                     has_power = True
                         elif deviceTypeCode in ['008','006']:  # Window / portable AC
-                            if "99" not in deviceFeatureCode:
+                            if "99" not in (deviceFeatureCode or ""):
                                 # _LOGGER.debug("008 006Ddevice feature code is :%s,and status = :%s", deviceFeatureCode,
                                 #               property_keys)
                                 if 'f_power_display' in property_keys:
                                     has_power = True
                             else:
                                 # _LOGGER.debug("008 006Ddevice feature code is :%s,and static_data = :%s",deviceFeatureCode,self.static_data[device.device_id])
-                                if self.static_data[device.device_id].get("Power_function") == "1" :
+                                if (self.static_data.get(device.device_id) or {}).get("Power_function") == "1":
                                     has_power = True
 
                         elif deviceTypeCode == "007":  # Dehumidifier
-                            if "99" not in deviceFeatureCode:
+                            if "99" not in (deviceFeatureCode or ""):
                                 # _LOGGER.debug("007Ddevice feature code is :%s,and status = :%s", deviceFeatureCode,
                                 #               property_keys)
                                 if 'f_power_display' in property_keys:
                                     has_power = True
                             else:
                                 # _LOGGER.debug("007Ddevice feature code is :%s,and static_data = :%s",deviceFeatureCode,self.static_data[device.device_id])
-                                if self.static_data[device.device_id].get("Power_function") == "1" :
+                                if (self.static_data.get(device.device_id) or {}).get("Power_function") == "1":
                                     has_power = True
                         else:
                             # _LOGGER.debug("Ddevice feature code is :%s,and status = :%s", deviceFeatureCode,
