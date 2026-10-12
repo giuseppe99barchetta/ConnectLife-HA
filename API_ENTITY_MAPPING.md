@@ -48,3 +48,28 @@ Coordinator timestamps distinguish the last REST refresh and last processed
 WebSocket event, but do not claim individual status properties were updated
 at either time. A bounded event log stores only notification type, field
 names and time, without raw messages or device identifiers.
+
+## First real HA diagnostic capture — 2026-10-12 14:03:55 UTC
+
+The user-provided native HA diagnostics contains three anonymized online
+devices of type 009 / feature 128. All report t_power=0. Two have
+t_work_mode=0, one has t_work_mode=3, which is DRY retained while OFF,
+not proof of active dehumidification.
+
+| API field | Cached values (three devices) | Conclusion |
+| --- | --- | --- |
+| f_temp_in | 25 / 27 / 24 | Present even when powered off |
+| f_humidity | absent / absent / absent | No actual humidity measurement established |
+| f_e_inhumidity | 0 / 0 / 0 | Fault flag, not humidity |
+| f_power_display | absent / absent / absent | Declared in parser, not observed as live power |
+| f_electricity | 0 / 0 / 0 | Current reading while off |
+| f_votage | 1 / 1 / 1 | Scale/meaning not validated; should not present as literal 1 V |
+| f_power_consumption | 0 / 0 / 0.03 | Cached energy, may be daily-resetting |
+| f_estimated_power | 0 / 0 / 0 | Calculated locally, not hardware measured |
+
+The last REST success was about 15 seconds before capture. There were
+no recorded WebSocket events or last WS timestamp, which does not by
+itself establish a disconnected socket. Parser attributes were present
+but raw API property lists and static maps were empty. More snapshots
+during normal OFF/DRY/COOL/HEAT operation are needed to confirm
+per-property freshness, voltage scale and event coverage.
