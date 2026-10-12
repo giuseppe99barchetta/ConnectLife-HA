@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
+from collections import deque
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -37,6 +38,9 @@ class HisenseACPluginDataUpdateCoordinator(DataUpdateCoordinator):
         self._puid_to_device_id: dict[str, str] = {}
         self._websocket: HisenseWebSocket | None = None
         self._websocket_connected = False
+        self.last_rest_success_at: str | None = None
+        self.last_ws_event_at: str | None = None
+        self._diagnostic_ws_events = deque(maxlen=100)
 
     async def async_setup(self) -> bool:
         """Set up the coordinator."""
@@ -76,6 +80,7 @@ class HisenseACPluginDataUpdateCoordinator(DataUpdateCoordinator):
             
             # Update coordinator data
             self._set_devices(devices)
+            self.last_rest_success_at = datetime.now(timezone.utc).isoformat()
             _LOGGER.info("Successfully updated %d devices", len(devices))
             
             return self._devices
@@ -97,6 +102,7 @@ class HisenseACPluginDataUpdateCoordinator(DataUpdateCoordinator):
             devices = await self.api_client.async_get_devices()
             if devices and device_id in devices:
                 self._set_devices(devices)
+                self.last_rest_success_at = datetime.now(timezone.utc).isoformat()
                 self.async_set_updated_data(self._devices)
                 _LOGGER.info("Manually refreshed device %s", device_id)
             else:
@@ -112,6 +118,7 @@ class HisenseACPluginDataUpdateCoordinator(DataUpdateCoordinator):
             devices = await self.api_client.async_get_devices()
             if devices:
                 self._set_devices(devices)
+                self.last_rest_success_at = datetime.now(timezone.utc).isoformat()
                 self.async_set_updated_data(self._devices)
                 _LOGGER.info("Successfully refreshed %d devices", len(devices))
             else:
@@ -206,6 +213,13 @@ class HisenseACPluginDataUpdateCoordinator(DataUpdateCoordinator):
                 device = self._devices.get(device_key) if device_key else None
                 
                 if device and device_key:
+                    self.last_ws_event_at = datetime.now(timezone.utc).isoformat()
+                    self._diagnostic_ws_events.append({
+                        "timestamp": self.last_ws_event_at,
+                        "type": msg_type,
+                        "status_keys": sorted(content_data.get("properties", {}).keys())
+                        if isinstance(content_data.get("properties"), dict) else [],
+                    })
                     _LOGGER.debug("Found device %s in devices list", device_id)
                     device_data = device.to_dict()
                     _LOGGER.debug("Current device data: %s", device_data)
