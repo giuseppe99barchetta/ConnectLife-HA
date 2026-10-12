@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import json
-from datetime import date
+from datetime import date, datetime
 from types import SimpleNamespace
 
 from custom_components.hisense_ac_plugin.diagnostics import (
@@ -30,7 +30,8 @@ def _build_device() -> DeviceInfo:
             "statusList": {
                 "t_power": "1",
                 "f_temp_in": "22.5",
-                "f_humidity": "61",
+                "f_votage": "1",
+                "f_power_consumption": "0.03",
             },
         }
     )
@@ -51,7 +52,25 @@ class FakeApi:
                         value_range=None,
                         value_map=None,
                         read_write="R",
-                    )
+                    ),
+                    "f_humidity": SimpleNamespace(
+                        key="f_humidity",
+                        name="Indoor Humidity",
+                        attr_type="Number",
+                        step=1,
+                        value_range="0~100",
+                        value_map=None,
+                        read_write="R",
+                    ),
+                    "f_power_display": SimpleNamespace(
+                        key="f_power_display",
+                        name="Power",
+                        attr_type="Number",
+                        step=1,
+                        value_range=None,
+                        value_map=None,
+                        read_write="R",
+                    ),
                 }
             )
         }
@@ -97,6 +116,9 @@ def _build_coordinator() -> tuple[SimpleNamespace, FakeApi, DeviceInfo]:
     coordinator = SimpleNamespace(
         data={device.device_id: device},
         api_client=api,
+        last_rest_success_at="2026-10-12T14:03:40+00:00",
+        last_ws_event_at=None,
+        _diagnostic_ws_events=[],
     )
     return coordinator, api, device
 
@@ -118,11 +140,22 @@ def test_collect_snapshot_uses_cached_read_only_data_by_default():
     assert item["feature_code"] == "128"
     assert item["online"] is True
     assert item["status"]["f_temp_in"] == "22.5"
-    assert item["status"]["f_humidity"] == "61"
+    assert item["status"]["f_votage"] == "1"
     assert item["status_units"]["f_temp_in"] == "°C"
-    assert item["status_units"]["f_humidity"] == "%"
+    assert "f_humidity" not in item["status_units"]
+    assert "f_power_display" not in item["status_units"]
+    assert "f_votage" not in item["status_units"]
+    assert item["status_value_notes"]["f_votage"] == "vendor_voltage_scale_unvalidated"
     assert item["property_capabilities"]["f_temp_in"]["read_write"] == "R"
+    assert item["property_capabilities"]["f_temp_in"]["observed_in_status"] is True
+    assert item["property_capabilities"]["f_humidity"]["observed_in_status"] is False
+    assert item["property_capabilities"]["f_power_display"]["observed_in_status"] is False
+    assert item["property_capabilities"]["f_humidity"]["range"] == "0~100"
     assert item["static_capabilities"]["f_humidity"] == "1"
+    assert "timestamp" not in item
+    assert snapshot["freshness"]["last_rest_success_at"] == "2026-10-12T14:03:40+00:00"
+    assert snapshot["freshness"]["last_ws_event_at"] is None
+    assert snapshot["capture_started_at"] <= snapshot["captured_at"]
     assert device.device_id not in _snapshot_text(snapshot)
     assert device.puid not in _snapshot_text(snapshot)
     assert api.energy_calls == []
@@ -149,10 +182,12 @@ def test_collect_snapshot_calls_optional_read_only_endpoints_when_requested():
     assert item["energy_read"]["success"] is True
     assert item["energy_read"]["status"] == {"08": "0.25", "09": "0.50"}
     assert item["energy_source"] == "live_connectlife_hourly_api"
+    assert datetime.fromisoformat(item["energy_read_at"]).tzinfo is not None
     assert item["self_check_read"]["success"] is True
     assert item["self_check_read"]["status"]["code"] == 0
     assert item["self_check_read"]["status"]["result"] == "<redacted>"
     assert item["self_check_source"] == "live_connectlife_self_check_api"
+    assert datetime.fromisoformat(item["self_check_read_at"]).tzinfo is not None
     assert "self-check-sentinel" not in serialized
 
 
@@ -209,3 +244,66 @@ def test_sanitize_snapshot_redacts_identifiers_and_credentials_recursively():
     assert "009" in serialized
     assert "128" in serialized
     assert snapshot == original
+
+
+def test_sanitize_snapshot_redacts_nested_numeric_ids_and_identifier_map_keys():
+    snapshot = {
+        "nested": {
+            "roomId": 123456,
+            "homeId": 987654,
+            "puid-secret-map-key": {
+                "f_temp_in": "24",
+            },
+            "A0123456789ABCDEF0123456789ABCDEF": {
+                "f_temp_in": "25",
+            },
+        }
+    }
+
+    sanitized = sanitize_snapshot(snapshot, salt=b"stable-test-salt")
+    serialized = _snapshot_text(sanitized)
+
+    assert "123456" not in serialized
+    assert "987654" not in serialized
+    assert "puid-secret-map-key" not in serialized
+    assert "A0123456789ABCDEF0123456789ABCDEF" not in serialized
+    assert "<redacted-key:" in serialized
+    assert sanitized["nested"]["roomId"] == "<redacted>"
+    assert sanitized["nested"]["homeId"] == "<redacted>"
+
+
+def test_sanitize_snapshot_keeps_fault_status_keys_that_contain_sensitive_words():
+    sanitized = sanitize_snapshot(
+        {
+            "status": {
+                "f_e_inwifi": "0",
+                "f_e_upmachine": "1",
+            }
+        },
+        salt=b"stable-test-salt",
+    )
+
+    assert sanitized["status"]["f_e_inwifi"] == "0"
+    assert sanitized["status"]["f_e_upmachine"] == "1"
+
+
+def test_collect_snapshot_sanitizes_websocket_event_buffer():
+    coordinator, _api, _device = _build_coordinator()
+    coordinator._diagnostic_ws_events = [
+        {
+            "timestamp": "2026-10-12T14:03:50+00:00",
+            "type": "status_devicestatus",
+            "status_keys": ["f_temp_in"],
+            "puid": "puid-secret-id",
+            "nested": {"deviceId": 123456},
+        }
+    ]
+
+    snapshot = asyncio.run(async_collect_snapshot(coordinator))
+    event = snapshot["websocket_events"][0]
+
+    assert event["timestamp"] == "2026-10-12T14:03:50+00:00"
+    assert event["type"] == "status_devicestatus"
+    assert event["status_keys"] == ["f_temp_in"]
+    assert event["puid"] == "<redacted>"
+    assert event["nested"]["deviceId"] == "<redacted>"

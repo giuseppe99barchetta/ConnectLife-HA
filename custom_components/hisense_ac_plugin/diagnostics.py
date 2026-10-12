@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import hashlib
+import re
 import secrets
 from typing import Any
 
@@ -18,7 +19,41 @@ from .const import DOMAIN
 _SENSITIVE = ("token", "secret", "password", "authorization", "cookie", "session",
               "email", "phone", "address", "ssid", "wifi", "puid", "deviceid",
               "userid", "openid", "longitude", "latitude", "serial", "imei",
-              "mac", "credential")
+              "mac", "credential", "roomid", "homeid", "houseid", "familyid",
+              "accountid", "memberid", "uuid", "nickname", "roomname",
+              "devicename")
+
+_SAFE_MAPPING_KEY = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
+_SAFE_NUMERIC_KEY = re.compile(r"^\d{1,4}$")
+_SAFE_DATE_KEY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_LIKELY_IDENTIFIER_KEY = re.compile(r"^(?:[0-9A-Fa-f]{16,}|[A-Za-z0-9]{24,})$")
+_SAFE_PROPERTY_VALUE = re.compile(r"^(?:[ft]_[a-z0-9_]+|status_[a-z0-9_]+)$")
+_SAFE_RANGE_VALUE = re.compile(r"^-?\d+(?:\.\d+)?(?:~-?\d+(?:\.\d+)?)?(?:,-?\d+(?:\.\d+)?(?:~-?\d+(?:\.\d+)?)?)*$")
+_SAFE_ISO_TIMESTAMP = re.compile(
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$"
+)
+
+_STATUS_UNITS = {
+    "f_temp_in": "°C",
+    "t_temp_in": "°C",
+    "f_humidity": "%",
+    "f_power_display": "W",
+    "f_electricity": "mA",
+    "f_power_consumption": "kWh",
+    "f_estimated_power": "W",
+}
+
+
+def _sanitize_mapping_key(label: str, salt: bytes) -> str:
+    """Keep schema-like keys while anonymizing identifier-like map keys."""
+    if (
+        (_SAFE_MAPPING_KEY.fullmatch(label) and not _LIKELY_IDENTIFIER_KEY.fullmatch(label))
+        or _SAFE_NUMERIC_KEY.fullmatch(label)
+        or _SAFE_DATE_KEY.fullmatch(label)
+    ):
+        return label
+    digest = hashlib.sha256(salt + label.encode()).hexdigest()[:12]
+    return f"<redacted-key:{digest}>"
 
 
 def sanitize_snapshot(value: Any, *, salt: bytes | None = None) -> Any:
@@ -32,10 +67,14 @@ def sanitize_snapshot(value: Any, *, salt: bytes | None = None) -> Any:
         clean = {}
         for key, item in value.items():
             label = str(key)
-            if any(part in label.lower().replace("_", "") for part in _SENSITIVE):
-                clean[label] = "<redacted>"
+            output_label = _sanitize_mapping_key(label, salt)
+            is_device_property = bool(_SAFE_PROPERTY_VALUE.fullmatch(label))
+            if not is_device_property and any(
+                part in label.lower().replace("_", "") for part in _SENSITIVE
+            ):
+                clean[output_label] = "<redacted>"
             else:
-                clean[label] = sanitize_snapshot(item, salt=salt)
+                clean[output_label] = sanitize_snapshot(item, salt=salt)
         return clean
     if isinstance(value, (list, tuple)):
         return [sanitize_snapshot(item, salt=salt) for item in value]
@@ -45,6 +84,14 @@ def sanitize_snapshot(value: Any, *, salt: bytes | None = None) -> Any:
         stripped = value.strip()
         if stripped.lower() in {"on", "off", "online", "offline", "true", "false",
                                 "auto", "dry", "cool", "heat", "fan", "unknown"}:
+            return stripped
+        if stripped in {"R", "RW", "W"}:
+            return stripped
+        if (
+            _SAFE_PROPERTY_VALUE.fullmatch(stripped)
+            or _SAFE_RANGE_VALUE.fullmatch(stripped)
+            or _SAFE_ISO_TIMESTAMP.fullmatch(stripped)
+        ):
             return stripped
         # API sensors often return numbers as strings.
         try:
@@ -67,13 +114,14 @@ async def async_collect_snapshot(
     No refresh of the device list and no control commands. The default uses
     values already held by the coordinator, avoiding extra cloud polling.
     """
-    now = datetime.now(timezone.utc).isoformat()
+    capture_started_at = datetime.now(timezone.utc).isoformat()
     api = coordinator.api_client
     devices = coordinator.data or {}
     salt = secrets.token_bytes(16)
     result: dict[str, Any] = {
         "schema_version": 1,
-        "captured_at": now,
+        "capture_started_at": capture_started_at,
+        "captured_at": capture_started_at,
         "source": "home_assistant_connectlife_coordinator_cache",
         "oauth": "existing_session_not_exported",
         "freshness": {
@@ -82,7 +130,9 @@ async def async_collect_snapshot(
             "note": "Per-key timestamps are not provided by ConnectLife; cached values may be older than capture time.",
         },
         "devices": [],
-        "websocket_events": list(getattr(coordinator, "_diagnostic_ws_events", [])),
+        "websocket_events": sanitize_snapshot(
+            list(getattr(coordinator, "_diagnostic_ws_events", [])), salt=salt
+        ),
     }
     for device in devices.values():
         identity = str(device.device_id or device.puid or "")
@@ -101,18 +151,25 @@ async def async_collect_snapshot(
             "online": device.is_online,
             "status": sanitize_snapshot(status, salt=salt),
             "status_units": {
-                "f_temp_in": "°C", "t_temp_in": "°C", "f_humidity": "%",
-                "f_power_display": "W", "f_votage": "V", "f_electricity": "mA",
-                "f_power_consumption": "kWh", "f_estimated_power": "W",
+                key: unit for key, unit in _STATUS_UNITS.items() if key in status
+            },
+            "status_value_notes": {
+                key: note
+                for key, note in {
+                    "f_votage": "vendor_voltage_scale_unvalidated",
+                    "f_power_consumption": "period_and_reset_semantics_unvalidated",
+                    "f_estimated_power": "locally_calculated_not_hardware_measured",
+                }.items()
+                if key in status
             },
             "property_capabilities": {
                 key: {"read_write": getattr(value, "read_write", None),
-                      "range": sanitize_snapshot(getattr(value, "value_range", None), salt=salt)}
+                      "range": sanitize_snapshot(getattr(value, "value_range", None), salt=salt),
+                      "observed_in_status": key in status}
                 for key, value in attributes.items()
             },
             "api_declared_properties": sanitize_snapshot(property_list, salt=salt),
             "static_capabilities": sanitize_snapshot(static, salt=salt),
-            "timestamp": now,
             "status_source": "coordinator_cache_mixed_rest_and_websocket",
         }
         if include_energy and device.puid:
@@ -122,16 +179,21 @@ async def async_collect_snapshot(
                 energy = await api.async_get_hour_power(date.today().isoformat(), device.puid)
                 item["energy_read"] = sanitize_snapshot(energy, salt=salt)
                 item["energy_source"] = "live_connectlife_hourly_api"
+                item["energy_read_at"] = datetime.now(timezone.utc).isoformat()
             except Exception as err:
                 item["energy_error_type"] = type(err).__name__
+                item["energy_attempted_at"] = datetime.now(timezone.utc).isoformat()
         if include_self_check and device.puid:
             try:
                 check = await api.async_api_self_check("0", device.puid)
                 item["self_check_read"] = sanitize_snapshot(check, salt=salt)
                 item["self_check_source"] = "live_connectlife_self_check_api"
+                item["self_check_read_at"] = datetime.now(timezone.utc).isoformat()
             except Exception as err:
                 item["self_check_error_type"] = type(err).__name__
+                item["self_check_attempted_at"] = datetime.now(timezone.utc).isoformat()
         result["devices"].append(item)
+    result["captured_at"] = datetime.now(timezone.utc).isoformat()
     return result
 
 
