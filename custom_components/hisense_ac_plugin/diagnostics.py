@@ -89,6 +89,9 @@ async def async_collect_snapshot(
         alias = hashlib.sha256(salt + identity.encode()).hexdigest()[:12]
         parser = api.parsers.get(device.device_id)
         attributes = getattr(parser, "attributes", {}) or {}
+        property_list = getattr(api, "_property_lists", {}).get(
+            (device.type_code, device.feature_code), []
+        )
         status = getattr(device, "status", {}) or {}
         static = api.static_data.get(device.device_id) or {}
         item: dict[str, Any] = {
@@ -107,6 +110,7 @@ async def async_collect_snapshot(
                       "range": sanitize_snapshot(getattr(value, "value_range", None), salt=salt)}
                 for key, value in attributes.items()
             },
+            "api_declared_properties": sanitize_snapshot(property_list, salt=salt),
             "static_capabilities": sanitize_snapshot(static, salt=salt),
             "timestamp": now,
             "status_source": "coordinator_cache_mixed_rest_and_websocket",

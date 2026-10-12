@@ -105,11 +105,6 @@ def _snapshot_text(snapshot) -> str:
     return json.dumps(snapshot, sort_keys=True, default=str)
 
 
-def _call_includes_value(call: tuple[tuple, dict], value: str) -> bool:
-    args, kwargs = call
-    return value in args or value in kwargs.values()
-
-
 def test_collect_snapshot_uses_cached_read_only_data_by_default():
     coordinator, api, device = _build_coordinator()
 
