@@ -83,6 +83,62 @@ separately. The capture timestamp identifies export time, **never** the
 measurement time of every property. Compare raw values with successive
 downloads and HA recorder history before classifying one as stale.
 
+## Read-only Home Assistant state/history cross-check — 2026-10-12 14:19 UTC
+
+This comparison used only Home Assistant entity state and recorder history.
+It did **not** query the ConnectLife API directly and therefore must not be
+described as a new raw-API capture. HA timestamps below describe HA entity
+updates/reports, not necessarily the instant a physical sensor was sampled.
+
+At the 14:03:55 UTC baseline boundary (16:03:55 Europe/Rome), recorder state
+for the three mapped 009/128 units matched the first diagnostics download:
+
+| Unit | Climate | Indoor temperature | HA power-consumption entity |
+| --- | --- | --- | --- |
+| Camera | OFF | 24 °C | 0.03 kWh |
+| Sala | OFF | 25 °C | 0.00 kWh |
+| Studio | OFF | 27 °C | 0.00 kWh |
+
+At the later read around 14:19 UTC all three climates were still OFF. Current
+and locally estimated power were 0 on all three units. Camera temperature had
+changed from 24 to 26 °C and both the climate entity and standalone indoor
+temperature entity were reported by HA at 16:06:40 Europe/Rome. Sala and
+Studio remained at 25 and 27 °C respectively; their climate `last_reported`
+timestamps were still 16:02:41, before the native diagnostics capture. This is
+an important freshness distinction: entity `last_reported` and coordinator
+`last_rest_success_at` measure different layers and cannot be substituted for
+one another. A lack of a newer HA entity report is not proof that the vendor
+cloud or WebSocket did not refresh.
+
+The current HA entity inventory still exposed no indoor-humidity measurement
+and no reported-power entity corresponding to `f_power_display`. The existing
+power entity is explicitly the integration's **estimated** power. All three
+voltage entities still showed `1.0 V`; because the authentic diagnostic also
+contained `f_votage=1` and the vendor scaling remains unknown, this must not be
+treated as a physically validated one-volt mains reading.
+
+### Recorder evidence of an actually running DRY cycle
+
+The previous 24 hours contain stronger evidence than the OFF baseline for the
+Camera unit. Home Assistant recorder shows its climate entity in `dry` from
+23:01:36 on 2026-10-11 until 00:05:16 on 2026-10-12 (Europe/Rome). During that
+same interval the HA current sensor changed from 0 to **1310 mA** at 23:03:56,
+and estimated power changed from 0 to **281 W**, later **274 W**. This electrical
+activity distinguishes that interval from the retained `t_work_mode=3` seen
+while the device was OFF in the 14:03 UTC diagnostic snapshot.
+
+The Camera HA power-consumption entity also advanced from 2.27 to 2.33 kWh at
+23:29:16 and to 2.40 kWh at 23:45:46 while the climate remained in DRY. It then
+reset to 0.00 kWh at 00:00:16 and later reported 0.03 kWh at 00:32:30. That HA
+history is evidence that the exposed consumption value behaves like a
+day-resetting total, rather than a lifetime monotonic meter. The 0.03 kWh update
+after the climate had already switched OFF also shows why this entity should
+not be interpreted as instantaneous power or as a precise on/off timestamp.
+
+These observations establish active DRY operation and correlated electrical
+activity at the HA entity layer only. They do not establish the raw vendor
+payload, the physical voltage scale, or per-property ConnectLife freshness.
+
 An offline, read-only comparison helper is available at
 `tools/compare_diagnostics.py`:
 
