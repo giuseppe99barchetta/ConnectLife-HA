@@ -10,7 +10,9 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import config_entry_oauth2_flow, config_validation as cv
+from homeassistant.helpers.update_coordinator import UpdateFailed
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
@@ -82,9 +84,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = HisenseACPluginDataUpdateCoordinator(hass, api_client, entry)
     
     # Initialize coordinator and get initial device list
-    if not await coordinator.async_setup():
-        _LOGGER.error("Failed to setup coordinator")
-        return False
+    try:
+        if not await coordinator.async_setup():
+            _LOGGER.error("Failed to setup coordinator")
+            return False
+    except UpdateFailed as error:
+        await coordinator.async_unload()
+        raise ConfigEntryNotReady(f"ConnectLife API unavailable: {error}") from error
 
     # Store coordinator in hass.data
     hass.data[DOMAIN][entry.entry_id] = coordinator

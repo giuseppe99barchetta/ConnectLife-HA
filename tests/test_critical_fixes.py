@@ -5,7 +5,11 @@ import json
 import re
 import time
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
+import pytest
+
+import custom_components.hisense_ac_plugin as integration_module
 from custom_components.hisense_ac_plugin import async_unload_entry
 from custom_components.hisense_ac_plugin.const import DOMAIN, StatusKey
 from custom_components.hisense_ac_plugin.climate import (
@@ -17,6 +21,8 @@ from custom_components.hisense_ac_plugin.api import HisenseApiClient
 from custom_components.hisense_ac_plugin.devices import BaseBeanParser
 from homeassistant.components.climate import HVACMode
 from homeassistant.components.climate.const import SWING_BOTH, SWING_HORIZONTAL, SWING_OFF, SWING_VERTICAL
+from homeassistant.helpers.update_coordinator import UpdateFailed
+from homeassistant.exceptions import ConfigEntryNotReady
 from custom_components.hisense_ac_plugin.config_flow import HisenseOptionsFlowHandler
 from custom_components.hisense_ac_plugin.coordinator import (
     HisenseACPluginDataUpdateCoordinator,
@@ -41,6 +47,67 @@ from custom_components.hisense_ac_plugin.water_heater import (
 from custom_components.hisense_ac_plugin.websocket import HisenseWebSocket
 
 MISSING = object()
+
+
+def test_device_fetch_wraps_cloud_failure_without_losing_cause():
+    client = object.__new__(HisenseApiClient)
+
+    async def unavailable_cloud(*args, **kwargs):
+        raise RuntimeError("cloud HTTP 504")
+
+    client._api_request = unavailable_cloud
+
+    async def check_failure():
+        try:
+            await client.async_get_devices()
+        except UpdateFailed as err:
+            assert "cloud HTTP 504" in str(err)
+            assert isinstance(err.__cause__, RuntimeError)
+        else:
+            raise AssertionError("Expected a coordinator update failure")
+
+    asyncio.run(check_failure())
+
+
+def test_coordinator_setup_propagates_transient_cloud_failure():
+    api_client = SimpleNamespace(
+        async_load_power_estimates=AsyncMock(),
+        async_get_devices=AsyncMock(side_effect=UpdateFailed("cloud HTTP 504")),
+    )
+    coordinator = HisenseACPluginDataUpdateCoordinator(
+        DummyHass(), api_client, SimpleNamespace()
+    )
+
+    with pytest.raises(UpdateFailed, match="cloud HTTP 504"):
+        asyncio.run(coordinator.async_setup())
+
+
+def test_entry_setup_raises_not_ready_on_transient_cloud_failure(monkeypatch):
+    cleanup_calls = []
+
+    class FailingCoordinator:
+        def __init__(self, hass, client, entry):
+            pass
+
+        async def async_setup(self):
+            raise UpdateFailed("cloud HTTP 504")
+
+        async def async_unload(self):
+            cleanup_calls.append("unload")
+
+    monkeypatch.setattr(
+        integration_module, "HisenseACPluginDataUpdateCoordinator", FailingCoordinator
+    )
+    hass = DummyHass()
+    hass.data[DOMAIN] = {}
+    entry = SimpleNamespace(entry_id="entry-1", title="Hisense", data={"token": {}})
+
+    with pytest.raises(ConfigEntryNotReady, match="cloud HTTP 504"):
+        asyncio.run(integration_module.async_setup_entry(hass, entry))
+
+    assert entry.entry_id not in hass.data[DOMAIN]
+    assert cleanup_calls == ["unload"]
+
 
 class DummyLoop:
     def call_soon_threadsafe(self, callback, *args):

@@ -17,6 +17,7 @@ import aiohttp
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.storage import Store
+from homeassistant.helpers.update_coordinator import UpdateFailed
 
 from .const import (
     API_BASE_URL,
@@ -841,7 +842,7 @@ class HisenseApiClient:
             
         except Exception as err:
             _LOGGER.error("Failed to fetch devices: %s", err)
-            raise UpdateFailed(f"Error communicating with API: {err}")
+            raise UpdateFailed(f"Error communicating with API: {err}") from err
 
     @staticmethod
     def create_humidity_parser(base_parser: Humidity007Parser, propertyList: list) -> Humidity007Parser:

@@ -60,7 +60,11 @@ def _install_homeassistant_stubs() -> None:
     class HomeAssistantError(Exception):
         pass
 
+    class ConfigEntryNotReady(HomeAssistantError):
+        pass
+
     exceptions.HomeAssistantError = HomeAssistantError
+    exceptions.ConfigEntryNotReady = ConfigEntryNotReady
     sys.modules["homeassistant.exceptions"] = exceptions
 
     config_entries = types.ModuleType("homeassistant.config_entries")

@@ -63,6 +63,8 @@ class HisenseACPluginDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.info("WebSocket background task scheduled")
             
             return True
+        except UpdateFailed:
+            raise
         except Exception as error:
             _LOGGER.error("Error setting up coordinator: %s", error)
             return False
@@ -87,7 +89,7 @@ class HisenseACPluginDataUpdateCoordinator(DataUpdateCoordinator):
             
         except Exception as error:
             _LOGGER.error("Error updating device data: %s", error)
-            raise UpdateFailed(f"Error communicating with API: {error}")
+            raise UpdateFailed(f"Error communicating with API: {error}") from error
 
     async def async_refresh_device(self, device_id: str) -> None:
         """Manually refresh a specific device's status."""
