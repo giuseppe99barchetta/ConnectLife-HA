@@ -17,7 +17,7 @@ from custom_components.hisense_ac_plugin.climate import (
     async_setup_entry as setup_climate,
 )
 from custom_components.hisense_ac_plugin import climate as climate_module
-from custom_components.hisense_ac_plugin.api import HisenseApiClient
+from custom_components.hisense_ac_plugin.api import HisenseApiClient, _safe_vendor_error
 from custom_components.hisense_ac_plugin.devices import BaseBeanParser
 from homeassistant.components.climate import HVACMode
 from homeassistant.components.climate.const import SWING_BOTH, SWING_HORIZONTAL, SWING_OFF, SWING_VERTICAL
@@ -33,7 +33,7 @@ from custom_components.hisense_ac_plugin import number as number_module
 from custom_components.hisense_ac_plugin import sensor as sensor_module
 from custom_components.hisense_ac_plugin.number import async_setup_entry as setup_number
 from custom_components.hisense_ac_plugin.select import async_setup_entry as setup_select
-from custom_components.hisense_ac_plugin.button import async_setup_entry as setup_button
+from custom_components.hisense_ac_plugin.button import HisenseButton, async_setup_entry as setup_button
 from custom_components.hisense_ac_plugin.binary_sensor import async_setup_entry as setup_binary_sensors
 from custom_components.hisense_ac_plugin.humidifier import async_setup_entry as setup_humidifier
 from custom_components.hisense_ac_plugin.switch import async_setup_entry as setup_switches
@@ -47,6 +47,66 @@ from custom_components.hisense_ac_plugin.water_heater import (
 from custom_components.hisense_ac_plugin.websocket import HisenseWebSocket
 
 MISSING = object()
+
+
+def test_vendor_error_diagnostics_keeps_codes_and_masks_credentials():
+    assert _safe_vendor_error(10041) == "10041"
+    assert _safe_vendor_error("Device temporarily unavailable") == "Device temporarily unavailable"
+    assert _safe_vendor_error("accessToken=secret-token-value") == "[redacted]"
+    assert _safe_vendor_error("puid: abcdef1234567890abcdef1234567890") == "puid: [redacted]"
+    assert _safe_vendor_error({"token": "secret"}) is None
+
+
+def test_rejected_climate_off_raises_and_discards_optimistic_mode():
+    climate = _build_climate_with_parser(status={
+        StatusKey.POWER: "0", StatusKey.MODE: "0", StatusKey.TARGET_TEMP: "23",
+    })
+    climate.async_write_ha_state = lambda: None
+    climate.coordinator.async_control_device = AsyncMock(
+        side_effect=RuntimeError("Device is not reported status error")
+    )
+
+    with pytest.raises(RuntimeError, match="Device is not reported status"):
+        asyncio.run(climate.async_set_hvac_mode(HVACMode.OFF))
+
+    assert climate._last_command_time == 0
+    assert climate.hvac_mode == HVACMode.OFF
+
+
+def test_rejected_climate_temperature_raises_instead_of_reporting_success():
+    climate = _build_climate_with_parser()
+    climate.async_write_ha_state = lambda: None
+    climate.coordinator.async_control_device = AsyncMock(side_effect=RuntimeError("cloud rejected"))
+
+    with pytest.raises(RuntimeError, match="cloud rejected"):
+        asyncio.run(climate.async_set_temperature(temperature=25))
+
+    assert climate._last_command_time == 0
+
+
+def test_online_climate_without_reported_power_is_unavailable():
+    climate = _build_climate_with_parser()
+    device = climate._device
+    assert climate.available is True
+    device.status = {}
+    assert climate.available is False
+    assert climate.hvac_mode == HVACMode.OFF  # unknown physical mode, not proof of OFF
+
+
+def test_climate_modes_recover_when_cloud_capabilities_return():
+    climate = _build_climate_with_parser(parser_attrs={})
+    assert climate._attr_hvac_modes == [HVACMode.OFF]
+
+    device = climate._device
+    climate.coordinator.api_client.parsers[device.device_id] = SimpleNamespace(attributes={
+        StatusKey.MODE: SimpleNamespace(value_map={"0": "送风", "1": "制热", "2": "制冷"}),
+    })
+    climate.wait_time = 10**12  # no base coordinator listener needed for this unit test
+    climate._handle_coordinator_update()
+
+    assert HVACMode.FAN_ONLY in climate._attr_hvac_modes
+    assert HVACMode.HEAT in climate._attr_hvac_modes
+    assert HVACMode.COOL in climate._attr_hvac_modes
 
 
 def test_device_fetch_wraps_cloud_failure_without_losing_cause():
@@ -394,16 +454,15 @@ def test_009_128_exposes_discovered_controls_and_measurements():
     assert {entity._attr_name for entity in selects} == {"Sleep Level", "Temperature Unit"}
     sleep_select = next(entity for entity in selects if entity._key == "t_sleep")
     assert sleep_select._attr_options == ["Off", "General", "Elderly", "Teenagers", "Children"]
-    assert {entity._button_type for entity in buttons} == {"refresh", "display_on", "display_off"}
+    # Without a writable t_dimmer capability, display buttons were spurious.
+    assert {entity._button_type for entity in buttons} == {"refresh"}
     assert {
         entity._button_type: entity._properties for entity in buttons
     } == {
         "refresh": {"t_device_info": "1"},
-        "display_on": {"t_dimmer": "1"},
-        "display_off": {"t_dimmer": "0"},
     }
     assert {tuple(command["properties"].items())[0] for command in commands} == {
-        ("t_device_info", "1"), ("t_dimmer", "0"), ("t_dimmer", "1")
+        ("t_device_info", "1"),
     }
     assert len(faults) == 2
     electrical_data = next(entity for entity in faults if entity._attr_name == "Electrical Data Available")
@@ -423,9 +482,38 @@ def test_009_128_exposes_discovered_controls_and_measurements():
     assert current.native_value == 2310.0
 
 
+def test_refresh_button_unavailable_when_vendor_omits_device_status():
+    device = build_device(type_code="009", feature_code="128", status={StatusKey.POWER: "0"})
+    coordinator = SimpleNamespace(hass=DummyHass(), get_device=lambda _device_id: device)
+    button = HisenseButton(coordinator, device, "refresh")
+    assert button.available is True
+    device.status = {}
+    assert button.available is False
+
+
+def test_display_buttons_require_writable_cloud_dimmer():
+    hass = DummyHass()
+    entry = SimpleNamespace(entry_id="test-dimmer")
+    device = build_device(type_code="009", feature_code="128", status={StatusKey.POWER: "0"})
+    parser = SimpleNamespace(attributes={
+        "t_dimmer": SimpleNamespace(read_write="RW"),
+    })
+    coordinator = SimpleNamespace(
+        hass=hass,
+        data={device.device_id: device},
+        api_client=SimpleNamespace(parsers={device.device_id: parser}),
+        get_device=lambda _id: device,
+    )
+    hass.data[DOMAIN] = {entry.entry_id: coordinator}
+    buttons = []
+    asyncio.run(setup_button(hass, entry, buttons.extend))
+    assert {button._button_type for button in buttons} == {"display_on", "display_off"}
+
+
 def test_property_list_is_cached_per_model():
     client = object.__new__(HisenseApiClient)
     client._property_lists = {}
+    client._empty_property_list_checked_at = {}
     calls = []
 
     async def get_property_list(device_type, feature_code):
@@ -443,6 +531,33 @@ def test_property_list_is_cached_per_model():
 
     assert first == second == [{"propertyKey": "t_power"}]
     assert calls == [("009", "128")]
+
+
+def test_empty_property_list_is_not_cached_forever(monkeypatch):
+    client = object.__new__(HisenseApiClient)
+    client._property_lists = {}
+    client._empty_property_list_checked_at = {}
+    calls = []
+    clock = [100]
+    monkeypatch.setattr(
+        "custom_components.hisense_ac_plugin.api.time",
+        SimpleNamespace(monotonic=lambda: clock[0]),
+    )
+
+    async def fetch(_type, _feature):
+        calls.append(1)
+        return {"status": []} if len(calls) == 1 else {"status": [{"propertyKey": "t_work_mode"}]}
+
+    client.async_get_property_list = fetch
+
+    async def check():
+        assert await client._async_get_cached_property_list("009", "128") == []
+        clock[0] = 161
+        assert await client._async_get_cached_property_list("009", "128") == [{"propertyKey": "t_work_mode"}]
+        assert await client._async_get_cached_property_list("009", "128") == [{"propertyKey": "t_work_mode"}]
+
+    asyncio.run(check())
+    assert len(calls) == 2
 
 
 def test_estimated_power_is_calibrated_from_cloud_energy():

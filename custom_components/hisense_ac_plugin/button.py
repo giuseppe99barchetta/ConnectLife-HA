@@ -11,6 +11,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import DOMAIN
 from .coordinator import HisenseACPluginDataUpdateCoordinator
 from .models import DeviceInfo as HisenseDeviceInfo
+from .const import StatusKey
 
 
 async def async_setup_entry(
@@ -27,7 +28,15 @@ async def async_setup_entry(
         parser = coordinator.api_client.parsers.get(device.device_id)
         if device.has_attribute("t_device_info", parser):
             entities.append(HisenseButton(coordinator, device, "refresh"))
-        if device.type_code == "009" and device.feature_code == "128":
+        # t_dimmer is absent from the 009-128 devices' advertised controls.
+        # Do not expose speculative display buttons: the cloud rejects them.
+        dimmer_attr = (parser.attributes.get("t_dimmer") if parser else None)
+        if (
+            device.type_code == "009"
+            and device.feature_code == "128"
+            and dimmer_attr is not None
+            and "W" in str(getattr(dimmer_attr, "read_write", "")).upper()
+        ):
             entities.extend(
                 HisenseButton(coordinator, device, button_type)
                 for button_type in ("display_on", "display_off")
@@ -66,7 +75,9 @@ class HisenseButton(CoordinatorEntity, ButtonEntity):
 
     @property
     def available(self) -> bool:
-        return bool(self._device and self._device.is_online)
+        device = self._device
+        # A stale 'online' bit with no status is not enough to control a split.
+        return bool(device and device.is_online and device.get_status_value(StatusKey.POWER) is not None)
 
     async def async_press(self) -> None:
         await self.coordinator.async_control_device(

@@ -44,6 +44,20 @@ from .models import DeviceInfo, HisenseApiError
 _LOGGER = logging.getLogger(__name__)
 HORIZONTAL_SWING_PROPERTY_KEYS = {"t_left_right", "t_lr", "t_swing_lr", "t_l_r"}
 
+
+def _safe_vendor_error(value: Any) -> str | None:
+    """Keep short vendor error details while masking identifiers and credentials."""
+    if not isinstance(value, (str, int, float)):
+        return None
+    detail = str(value).strip()
+    if not detail:
+        return None
+    detail = re.sub(r"(?i)(?:access_?token|refresh_?token|password|secret)\s*[:=]\s*\S+", "[redacted]", detail)
+    detail = re.sub(r"\b[a-fA-F0-9]{24,}\b", "[redacted]", detail)
+    if "http://" in detail.lower() or "https://" in detail.lower():
+        return "[url omitted]"
+    return detail[:160]
+
 class HisenseApiClient:
     """Hisense API client."""
 
@@ -61,6 +75,7 @@ class HisenseApiClient:
         self.parsers: dict[str, BaseDeviceParser] = {}
         self.static_data: dict[str, Any] = {}
         self._property_lists: dict[tuple[str, str], list[dict[str, Any]]] = {}
+        self._empty_property_list_checked_at: dict[tuple[str, str], float] = {}
         self._power_cache: dict[str, tuple[str, float, float | None]] = {}
         self._power_estimates: dict[str, dict[str, float | int]] = {}
         self._power_estimates_store = Store(hass, 1, POWER_ESTIMATE_STORAGE_KEY)
@@ -472,8 +487,25 @@ class HisenseApiClient:
                     raise HisenseApiError(f"Unexpected response format: {response_data}")
                     
                 if response_data.get("resultCode") != 0:
-                    error_msg = response_data.get("msg", "Unknown error")
-                    raise HisenseApiError(f"API error: {error_msg}")
+                    # Log only safe response metadata: control failures may
+                    # otherwise be reported as an unhelpful "Unknown error".
+                    result_code = response_data.get("resultCode")
+                    vendor_error_code = _safe_vendor_error(response_data.get("errorCode"))
+                    vendor_error_desc = _safe_vendor_error(response_data.get("errorDesc"))
+                    _LOGGER.warning(
+                        "ConnectLife rejected %s %s: resultCode=%r (%s), errorCode=%r, errorDesc=%r, response keys=%s",
+                        method,
+                        endpoint,
+                        result_code,
+                        type(result_code).__name__,
+                        vendor_error_code,
+                        vendor_error_desc,
+                        sorted(response_data),
+                    )
+                    error_msg = _safe_vendor_error(response_data.get("msg")) or vendor_error_desc or "Unknown error"
+                    raise HisenseApiError(
+                        f"API error: {error_msg} (resultCode={result_code!r}, errorCode={vendor_error_code!r})"
+                    )
                 # _LOGGER.debug("API response: %s", json.dumps(response_data, indent=2))    
                 return response_data
                 
@@ -555,13 +587,22 @@ class HisenseApiClient:
     async def _async_get_cached_property_list(
         self, device_type_code: str, device_feature_code: str
     ) -> list[dict[str, Any]]:
-        """Return model capabilities, fetching them once per integration load."""
+        """Cache valid capabilities, but retry empty cloud responses periodically."""
         model_key = (str(device_type_code), str(device_feature_code))
         if model_key not in self._property_lists:
+            last_empty = self._empty_property_list_checked_at.get(model_key)
+            if last_empty is not None and time.monotonic() - last_empty < 60:
+                return []
             response = await self.async_get_property_list(
                 device_type_code, device_feature_code
             )
-            self._property_lists[model_key] = response.get("status") or []
+            properties = response.get("status") or []
+            if not isinstance(properties, list) or not properties:
+                self._empty_property_list_checked_at[model_key] = time.monotonic()
+                _LOGGER.warning("ConnectLife returned empty capabilities for device model; retrying later")
+                return []
+            self._property_lists[model_key] = properties
+            self._empty_property_list_checked_at.pop(model_key, None)
         return self._property_lists[model_key]
 
     def update_estimated_power(self, device: DeviceInfo) -> None:

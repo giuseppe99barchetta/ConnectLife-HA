@@ -17,6 +17,7 @@ from homeassistant.components.climate.const import (
     SWING_HORIZONTAL,
 )
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.const import (
     ATTR_TEMPERATURE,
     UnitOfTemperature,
@@ -472,7 +473,10 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
             )
             return False
 
-        availability = device.is_online
+        # ConnectLife sometimes lists devices as online but omits statusList.
+        # Without a reported power state, OFF is an assumption, not a reading,
+        # and its control endpoint can reject commands as "not reported status".
+        availability = device.is_online and device.get_status_value(StatusKey.POWER) is not None
         if not availability:
             _LOGGER.debug(
                 "Climate unavailable device=%s type=%s-%s offlineState=%s normalized_online=%s parser_exists=%s status_keys=%s",
@@ -655,6 +659,16 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
             )
         except Exception as err:
             _LOGGER.error("Failed to set temperature: %s", err)
+            self._clear_failed_command_cache()
+            raise
+
+    def _clear_failed_command_cache(self) -> None:
+        """Discard optimistic state when ConnectLife rejects a write."""
+        self._last_command_time = 0
+        self._cached_target_temp = None
+        self._cached_fan_mode = None
+        self._cached_swing_mode = None
+        self.async_write_ha_state()
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         # Cache the requested state briefly to avoid UI bounce after commands.
@@ -706,8 +720,11 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
                 )
             else:
                 _LOGGER.error("Could not find Hisense mode value for HA mode: %s", hvac_mode)
+                raise HomeAssistantError(f"Unsupported Hisense HVAC mode: {hvac_mode}")
         except Exception as err:
             _LOGGER.error("Failed to set hvac mode: %s", err)
+            self._clear_failed_command_cache()
+            raise
 
     async def async_set_fan_mode(self, fan_mode: str) -> None:
         # Cache the requested state briefly to avoid UI bounce after commands.
@@ -737,6 +754,8 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
             )
         except Exception as err:
             _LOGGER.error("Failed to set fan mode: %s", err)
+            self._clear_failed_command_cache()
+            raise
 
     async def async_set_swing_mode(self, swing_mode: str) -> None:
         # Cache the requested state briefly to avoid UI bounce after commands.
@@ -794,6 +813,8 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
 
         except Exception as err:
             _LOGGER.error("Failed to set swing mode: %s", err)
+            self._clear_failed_command_cache()
+            raise
 
     async def async_turn_on(self) -> None:
         """Turn the entity on."""
@@ -805,6 +826,8 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
             )
         except Exception as err:
             _LOGGER.error("Failed to turn on: %s", err)
+            self._clear_failed_command_cache()
+            raise
 
     async def async_turn_off(self) -> None:
         """Turn the entity off."""
@@ -816,11 +839,22 @@ class HisenseClimate(CoordinatorEntity, ClimateEntity):
             )
         except Exception as err:
             _LOGGER.error("Failed to turn off: %s", err)
+            self._clear_failed_command_cache()
+            raise
     def _handle_coordinator_update(self) -> None:
         device = self.coordinator.get_device(self._device_id)
         if not device:
             _LOGGER.warning("Device %s not found during sensor update", self._device_id)
             return
+        # Capability lists can be empty during a cloud outage and recover on
+        # a later REST poll. Refresh the parser and supported modes in-place.
+        parser = self.coordinator.api_client.parsers.get(device.device_id)
+        if parser is not None and parser is not self._parser:
+            self._parser = parser
+            self.static_data = self.coordinator.api_client.static_data.get(device.device_id)
+            self._setup_hvac_modes()
+            self._setup_fan_modes()
+            self._setup_swing_modes()
         """Process coordinator updates only after the command debounce window."""
         if time.time() - self._last_command_time >= self.wait_time:
             super()._handle_coordinator_update()
